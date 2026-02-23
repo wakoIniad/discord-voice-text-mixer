@@ -1,5 +1,4 @@
 import fs from 'fs';
-import { color } from 'three/tsl';
 /*import pino from 'pino';
 
 const logger = pino({
@@ -54,44 +53,28 @@ export class MyLib {
         background: 30,//'38',
         text: 40,//'48'
     } as const;
-    /*static readonly TerminalColorMode = {
-        full:   'full',
-        byte:   'byte',
-        bit3:   'bit3',
-        bit4:   'bit4',
-    } as const;*/
+    
     static readonly TerminalColorMode = {
         full:   [8,2],
         byte:   [8,5],
-        bit3:   [0],
-        bit4:   [0],
+        bit3:   [0,-1],
+        bit4:   [0,-2],
     } as const;
-    
-    static CreateTextFormatOp(
+    static CreateTextColorOp(
         target: keyof typeof this.TerminalFormatTarget,
         rgb: MyLibRGB,
         colorMode: keyof typeof this.TerminalColorMode
     ) {
-        const use_code = [...this.TerminalColorMode[colorMode]]
-        use_code[0] += this.TerminalFormatTarget[target];
-
-        const reset_code    = '\x1b[0m';
         
-        const [add_base, self] = ({
-            full:():[number, string]=>[0,`${rgb[0]};${rgb[1]};${rgb[2]}m`],
-            byte:():[number, string]=>[0,`${16 + 36 * (Math.floor(rgb[0]/256 * 6)) + 6 * (Math.floor(rgb[1])) + (Math.floor(rgb[2]))}m`],
-            bit3:():[number, string]=>{
-                const i = (rgb[0]+rgb[1]+rgb[2])/3;
-                return [0, `${4*+(rgb[0] > i) + 2*+(rgb[1] > i) + 1*+(rgb[2] > i)}m`];
-            },
-            bit4:():[number, string]=>{
-                const i = (rgb[0]+rgb[1]+rgb[2])/3;
-                return [60*+(i >= 128), `${4*+(rgb[0] > i) + 2*+(rgb[1] > i) + 1*+(rgb[2] > i)}m`]
-            }
-        } as const)[colorMode]();
-        const start_code = [use_code[0] + add_base, ...use_code.slice(1), self].join(';')
+        const intensediff   = 60;
+        const base_code = [...colorMode];
+        base_code[0] += target;
+        const reset_code    = '\x1b[0m';
+
+        
+        const color_code    = 
         return function(text: string) {
-            return `${start_code}${text}${reset_code}`
+            return `${color_code}${text}${reset_code}`
         }
     }
     static CreateTerminalOp(type: keyof typeof this.TerminalTargetCode, color: string) {
@@ -169,3 +152,35 @@ export class LocalLogManager {
     }
 }
 
+
+
+
+            case 'full':
+                return function(r: number, g: number, b: number):string {
+                    return `2;[${r}];[${g}];[${b}]m`;
+                }
+            case '256':
+                return function(r: number, g: number, b: number):string {
+                    r = Math.floor(r/256 * 6);
+                    g = Math.floor(g/256 * 6);
+                    b = Math.floor(b/256 * 6);
+                    const code = 16 + 36 * r + 6 * g + b;
+                    return `5;${code}m`;
+                }
+
+                
+                    r = ;
+                    g = ;
+                    b = ;
+                    const code = 16 + 36 * (Math.floor(r/256 * 6)) + 6 * (Math.floor(g/256 * 6)) + (Math.floor(b/256 * 6));
+            case '8':
+                return function(r: number, g: number, b: number): string {
+                    let i = (r+g+b)/3
+                    r = +(r > i);
+                    g = +(g > i);
+                    b = +(b > i);
+                    const i_add = 60*+(i >= 128) ;
+                    const code = 4*+(r > i) + 2*+(g > i) + 1*+(b > i);
+                    return `;${code}m`;
+                }
+                break;
