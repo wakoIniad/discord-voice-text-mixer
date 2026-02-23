@@ -1,16 +1,33 @@
 //import {  } from 'nodejs-whisper';
-import { ActivityType, Client, Collection, Events, GatewayIntentBits} from 'discord.js';
-import type { CommandInteraction, User } from "discord.js";
-import { BotCommandError, ErrorManager } from './error.ts';
+
+import * as Discord from 'discord.js';
+import { ErrorManager } from './error.ts';
+import { Commands as CommandDefine } from './defineCommands.js';
+
+const useCommands = ( CommandDefine as Discord.SlashCommandBuilder[])
+    .reduce((result: {[key: string]: Command}, cmd) => {
+    const options: string[] = cmd.options.map((opt:Discord.ToAPIApplicationCommandOptions)=>'name' in opt ? opt.name: '').filter(f=>f) as string[];
+    
+    result[cmd.name] = new Command(cmd.name, options, ()=>true);
+    return result;
+}, {});
+
+class Command {
+    constructor(
+        public name: string, 
+        public option_names: string[],
+        public handle: (...any:[]) => boolean
+    ) {}
+}
 
 const botStat = {
     'mode': 0b0000,
 }
 
 class VoiceData {
-    speaker: User;
+    speaker: Discord.User;
     text: string;
-    constructor(speaker: User, text: string) {
+    constructor(speaker: Discord.User, text: string) {
         this.speaker = speaker;
         this.text = text;
     }
@@ -23,15 +40,15 @@ const streams = {
 }
 
 
-const client = new Client(
+const client = new Discord.Client(
     {intents: 
         [ 
-            GatewayIntentBits.Guilds,
-            GatewayIntentBits.GuildMembers,
-            GatewayIntentBits.GuildMessages,
-            GatewayIntentBits.MessageContent,
-            GatewayIntentBits.GuildVoiceStates,
-            GatewayIntentBits.GuildWebhooks
+            Discord.GatewayIntentBits.Guilds,
+            Discord.GatewayIntentBits.GuildMembers,
+            Discord.GatewayIntentBits.GuildMessages,
+            Discord.GatewayIntentBits.MessageContent,
+            Discord.GatewayIntentBits.GuildVoiceStates,
+            Discord.GatewayIntentBits.GuildWebhooks
         ]
     }
 );
@@ -42,7 +59,7 @@ class Board {
     constructor(type) {
         this.#type = type;
     }
-    display() {
+    createBoard(targetChannel: Discord.Channel) {
 
     }
     dispose() {
@@ -66,6 +83,25 @@ function getCommandExcuterFunc(commandName: string) {
     }
 }
 
+function sendMessage(to: Discord.Channel) {
+
+}
+
+class BotMessageFormat {
+    static ERROR_TYPES = {
+        default: Symbol('default')
+    }
+    static Error(baseIdentifier: Symbol, e: Error) {
+
+    }
+}
+
+const commandList = [
+    new Command() {
+        
+    }
+]
+
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand()) {
     const commandName = interaction.commandName;
@@ -76,9 +112,9 @@ client.on('interactionCreate', async (interaction) => {
 
     try {
         getCommandExcuterFunc(commandName)
-    } catch(e) {
-        if(e.identifier in BotCommandError.PublicErrorMessages) {
-            ErrorManager.sendErrorMessage(e);
+    } catch(e: any) {
+        if(ErrorManager.isKnownError()) {
+            BotMessageFormat.Error(BotMessageFormat.ERROR_TYPES.default, e);
         } else {
             ErrorManager.saveErrorMessage(e);
         }

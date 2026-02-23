@@ -1,0 +1,72 @@
+[
+  {
+    "options": [],
+    "name": "monitor",
+    "description": "サーバーの情報を公開",
+    "type": 1
+  },
+  {
+    "options": [],
+    "name": "board",
+    "description": "現在の発言内容がリアルタイムで更新されるボードを表示",
+    "type": 1
+  },
+  {
+    "options": [
+      {
+        "type": 3,
+        "name": "voice",
+        "description": "ボイスチャンネル",
+        "required": true
+      },
+      {
+        "type": 3,
+        "name": "text",
+        "description": "テキストチャンネル",
+        "required": true
+      }
+    ],
+    "name": "connect",
+    "description": "指定されたボイスチャットとテキストチャットをリンク",
+    "type": 1
+  },
+  {
+    "options": [
+      {
+        "type": 3,
+        "name": "format",
+        "description": "フォーマット文字列",
+        "required": true
+      }
+    ],
+    "name": "set-formatter",
+    "description": "文字起こしのフォーマットを指定してJSON形式から変換",
+    "type": 1
+  },
+  {
+    "options": [
+      {
+        "type": 3,
+        "name": "url",
+        "description": "ポスト先URL",
+        "required": true
+      }
+    ],
+    "name": "transfer-url",
+    "description": "議事録などのために、文字起こしの転送先URLを追加(JSON形式)",
+    "type": 1
+  },
+  {
+    "options": [
+      {
+        "name": "text",
+        "description": "チャンネル",
+        "required": true,
+        "type": 7
+      }
+    ],
+    "name": "transfer-channel",
+    "description": "議事録などのために、文字起こしの転送先チャンネルを追加",
+    "type": 1
+  }
+]

@@ -23,20 +23,14 @@ const logger = pino({
   }
 });*/
 
-export class BotCommandError extends Error {
-    static PublicErrorMessages = {
-
-    }
+class IdentifiableError extends Error {
+    $knownErrors: string[] = [];
     $identifier: string;
     constructor(identifier: string, ...arg: any[]) {
         super(...arg)
         this.$identifier = identifier
     }
-    sendErrorMessage() {
-
-    }
 }
-
 export type MyLibRGB = [ number, number, number ];
 export class MyLib {
     static getPaddingOp (
@@ -71,6 +65,25 @@ export class MyLib {
         reverse:    7,
     } as const;
     
+    static getTimeStamp(format: string, DateObject: Date = new Date()) {
+        
+        const head4 = this.getPaddingOp('0', 4);
+        const head2 = this.getPaddingOp('0', 2);
+        const tail3 = this.getPaddingOp('0', 3, Function.prototype.call.bind(Array.prototype.toReversed));
+        const data = {
+            "YYYY": head4(DateObject.getUTCFullYear()),
+            "MM":   head2(DateObject.getUTCMonth()  ),
+            "DD":   head2(DateObject.getUTCDate()   ),
+            "hh":   head2(DateObject.getUTCHours()),
+            "mm":   head2(DateObject.getUTCMinutes()),
+            "ss":   head2(DateObject.getUTCSeconds()),
+            "SSS":  tail3(DateObject.getUTCMilliseconds()),
+        }
+        for(const [key, value] of Object.entries(data)) {
+            format = format.replaceAll(key, value);
+        }
+        return format;
+    }
     static CreateTextFormatOp(
         target: keyof typeof this.ANSIFormatTarget,
         rgb: MyLibRGB,
@@ -112,25 +125,6 @@ export class LocalLogManager {
 
     savestream:    NodeJS.WritableStream;
     viewstream: NodeJS.WritableStream;
-    getTimeStamp(format: string, DateObject: Date = new Date()) {
-        
-        const head4 = this.getPaddingOp('0', 4);
-        const head2 = this.getPaddingOp('0', 2);
-        const tail3 = this.getPaddingOp('0', 3, Function.prototype.call.bind(Array.prototype.toReversed));
-        const data = {
-            "YYYY": head4(DateObject.getUTCFullYear()),
-            "MM":   head2(DateObject.getUTCMonth()  ),
-            "DD":   head2(DateObject.getUTCDate()   ),
-            "hh":   head2(DateObject.getUTCHours()),
-            "mm":   head2(DateObject.getUTCMinutes()),
-            "ss":   head2(DateObject.getUTCSeconds()),
-            "SSS":  tail3(DateObject.getUTCMilliseconds()),
-        }
-        for(const [key, value] of Object.entries(data)) {
-            format = format.replaceAll(key, value);
-        }
-        return format;
-    }
     constructor(
         LOG_FILE_FORMAT: string = './logs/err/{#}.log', 
         MAX_LOGFILE_LINE_COUNT: number = 1024,
@@ -143,7 +137,7 @@ export class LocalLogManager {
         this.viewstream = logstream;
     }
     #createStream() {
-        const logfile_path = this.#LOG_FILE_FORMAT.replace(/\{\#\}/, this.getTimeStamp('YYYYMMDD'));
+        const logfile_path = this.#LOG_FILE_FORMAT.replace(/\{\#\}/, MyLib.getTimeStamp('YYYYMMDD'));
         const logStream = fs.createWriteStream(logfile_path, { flags: 'a' });
         return logStream;
     }
@@ -153,15 +147,17 @@ export class LocalLogManager {
         `${error.stack}`
     }
     
-    saveErrorMessage(e:Error) {
+    SaveErrorMessage(e:Error) {
         const date = new Date();
         if(!this.savestream.writable) this.savestream = this.#createStream();
-        this.savestream.write(
-            `[${this.getTimeStamp('YYYY/MM/DD hh:mm:ss', date)}]`+
-            `${this.defaultErrorFormatter(e)}`
-        );
+        const text = 
+            `[${MyLib.getTimeStamp('YYYY/MM/DD hh:mm:ss', date)}]`+
+            `${this.defaultErrorFormatter(e)}`;
+        this.savestream.write(text);
+    }
+    ErrorMessage(e:IdentifiableError, knownErrorList: string[]) {
         if(!this.viewstream.writable) {
-            this.viewstream.write();
+            this.viewstream.write(text);
         }
     }
 }
