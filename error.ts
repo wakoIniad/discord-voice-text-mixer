@@ -51,25 +51,34 @@ export class MyLib {
         }
     }
 
-    static readonly TerminalFormatTarget = {
+    static readonly ANSIFormatTarget = {
         background: 30,//'38',
         text: 40,//'48'
     } as const;
 
-    static readonly TerminalColorMode = {
+    static readonly ANSIColorMode = {
         full:   [8,2],
         byte:   [8,5],
         bit3:   [0],
         bit4:   [0],
     } as const;
+
+    static readonly ANSIFormatOption = {
+        bold:       1,
+        faint:      2,
+        italic:     3,
+        underline:  4,
+        reverse:    7,
+    } as const;
     
     static CreateTextFormatOp(
-        target: keyof typeof this.TerminalFormatTarget,
+        target: keyof typeof this.ANSIFormatTarget,
         rgb: MyLibRGB,
-        colorMode: keyof typeof this.TerminalColorMode
+        colorMode: keyof typeof this.ANSIColorMode,
+        options: (keyof typeof this.ANSIFormatOption)[] = []
     ) {
-        const use_code = [...this.TerminalColorMode[colorMode]]
-        use_code[0] += this.TerminalFormatTarget[target];
+        const use_code = [...this.ANSIColorMode[colorMode]]
+        use_code[0] += this.ANSIFormatTarget[target];
 
         const intense_diff = 60;
         const rgbmax = 256;
@@ -90,7 +99,7 @@ export class MyLib {
                 return [intense_diff*+(i >= rgbmax/2), `${4*+(rgb[0] > i) + 2*+(rgb[1] > i) + 1*+(rgb[2] > i)}`]
             }
         } as const)[colorMode]();
-        const start_code = toAnsiEscapeSequence(`${use_code[0] + add_base}`, ...use_code.slice(1), self);
+        const start_code = toAnsiEscapeSequence(...options.map(opt=>this.ANSIFormatOption[opt]), `${use_code[0] + add_base}`,...use_code.slice(1), self);
         return function(text: string) {
             return `${start_code}${text}${reset_code}`
         }
