@@ -50,16 +50,12 @@ export class MyLib {
             return postprocess([char.repeat(Math.max(0, length - raw.length)), raw]).join()
         }
     }
+
     static readonly TerminalFormatTarget = {
         background: 30,//'38',
         text: 40,//'48'
     } as const;
-    /*static readonly TerminalColorMode = {
-        full:   'full',
-        byte:   'byte',
-        bit3:   'bit3',
-        bit4:   'bit4',
-    } as const;*/
+
     static readonly TerminalColorMode = {
         full:   [8,2],
         byte:   [8,5],
@@ -75,36 +71,28 @@ export class MyLib {
         const use_code = [...this.TerminalColorMode[colorMode]]
         use_code[0] += this.TerminalFormatTarget[target];
 
-        const reset_code    = '\x1b[0m';
-        
+        const intense_diff = 60;
+        const rgbmax = 256;
+        const toAnsiEscapeSequence = (...arr: any[]) => {
+            `\x1b[${arr.join(';')}m`;
+        }
+        const reset_code    = toAnsiEscapeSequence(0);
         const [add_base, self] = ({
-            full:():[number, string]=>[0,`${rgb[0]};${rgb[1]};${rgb[2]}m`],
-            byte:():[number, string]=>[0,`${16 + 36 * (Math.floor(rgb[0]/256 * 6)) + 6 * (Math.floor(rgb[1])) + (Math.floor(rgb[2]))}m`],
+            full:():[number, string]=>[0,`${rgb[0]};${rgb[1]};${rgb[2]}`],
+            byte:():[number, string]=>[0,`${16 + 36 * (Math.floor(rgb[0]/rgbmax * 6)) + 6 * (Math.floor(rgb[1])) + (Math.floor(rgb[2]))}`],
             bit3:():[number, string]=>{
                 const i = (rgb[0]+rgb[1]+rgb[2])/3;
-                return [0, `${4*+(rgb[0] > i) + 2*+(rgb[1] > i) + 1*+(rgb[2] > i)}m`];
+                return [0, `${4*+(rgb[0] > i) + 2*+(rgb[1] > i) + 1*+(rgb[2] > i)}`];
             },
-            bit4:():[number, string]=>{
+            /**use auto determinded intense*/
+            bit4 :():[number, string]=>{
                 const i = (rgb[0]+rgb[1]+rgb[2])/3;
-                return [60*+(i >= 128), `${4*+(rgb[0] > i) + 2*+(rgb[1] > i) + 1*+(rgb[2] > i)}m`]
+                return [intense_diff*+(i >= rgbmax/2), `${4*+(rgb[0] > i) + 2*+(rgb[1] > i) + 1*+(rgb[2] > i)}`]
             }
         } as const)[colorMode]();
-        const start_code = [use_code[0] + add_base, ...use_code.slice(1), self].join(';')
+        const start_code = toAnsiEscapeSequence(`${use_code[0] + add_base}`, ...use_code.slice(1), self);
         return function(text: string) {
             return `${start_code}${text}${reset_code}`
-        }
-    }
-    static CreateTerminalOp(type: keyof typeof this.TerminalTargetCode, color: string) {
-        return `\x1b[${this.TerminalTargetCode[type]};${color}`;
-        
-    }
-    static getTerminalColorOp(mode: string): (...$:any[]) => string {
-        switch(mode) {
-            
-            default:
-                return function(): string {
-                    return ``;
-                }
         }
     }
 }
