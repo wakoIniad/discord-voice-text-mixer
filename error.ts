@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { color } from 'three/tsl';
+
 /*import pino from 'pino';
 
 const logger = pino({
@@ -155,10 +155,13 @@ export class LocalLogManager {
             `${this.defaultErrorFormatter(e)}`;
         this.savestream.write(text);
     }
-    ErrorMessage(e:IdentifiableError, knownErrorList: string[]) {
+    isKnownError() {
+
+    }
+    /*ErrorMessage(e:IdentifiableError, knownErrorList: string[]) {
         if(!this.viewstream.writable) {
             this.viewstream.write(text);
         }
-    }
+    }*/
 }
 

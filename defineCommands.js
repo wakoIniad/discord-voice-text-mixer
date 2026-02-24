@@ -1,7 +1,7 @@
 
-import { SlashCommandBuilder } from 'discord.js';
 
 export const Commands = [
+    
     new SlashCommandBuilder()
         .setName('monitor')
         .setDescription('サーバーの情報を公開'),
