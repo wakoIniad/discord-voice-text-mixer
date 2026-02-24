@@ -214,21 +214,24 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand()) {
     const commandName = interaction.commandName;
     
-    type InteractionOptions = typeof interaction.options;
-    type MethodName = keyof InteractionOptions;
+
+    type OptionMap = {
+        getString:  Discord.CommandInteractionOptionResolver['getString'];
+        getChannel: Discord.CommandInteractionOptionResolver['getChannel'];
+    };
+    type MethodName = keyof OptionMap;
     const SlashCommandOptionGetMethod: {[key: string]: MethodName} = {
-        'string': 'getString',
+        'string':  'getString',
         'channel': 'getChannel'
     };
+    
     if(commandName in useCommands){
         for(const {type, name} of useCommands[commandName].option_names) {
-            if(name in SlashCommandOptionGetMethod) {   
-                if(typeof interaction.options[SlashCommandOptionGetMethod[name]] === 'function') {
-
-                    const method: ()=>any = interaction.options[SlashCommandOptionGetMethod[name]] as ()=>any;
-                    
-                    method();
-                }
+            if(type in SlashCommandOptionGetMethod) {   
+                //const method:OptionMap[keyof OptionMap] = 
+                const go3ts: OptionMap = interaction.options;
+                const key:keyof typeof go3ts = SlashCommandOptionGetMethod[type];
+                go3ts[key](name, true);                
             }
         }
     }
