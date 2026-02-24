@@ -215,25 +215,21 @@ client.on('interactionCreate', async (interaction) => {
     const commandName = interaction.commandName;
     
 
-    type OptionMap = {
-        getString:  Discord.CommandInteractionOptionResolver['getString'];
-        getChannel: Discord.CommandInteractionOptionResolver['getChannel'];
-    };
-    type MethodName = keyof OptionMap;
-    const SlashCommandOptionGetMethod: {[key: string]: MethodName} = {
-        'string':  'getString',
-        'channel': 'getChannel'
-    };
     
     if(commandName in useCommands){
+        let optarr = [];
         for(const {type, name} of useCommands[commandName].option_names) {
-            if(type in SlashCommandOptionGetMethod) {   
-                //const method:OptionMap[keyof OptionMap] = 
-                const go3ts: OptionMap = interaction.options;
-                const key:keyof typeof go3ts = SlashCommandOptionGetMethod[type];
-                go3ts[key](name, true);                
-            }
+            //@ts-ignore
+            let opt;
+            //@ts-ignore
+            if(opt = interaction?.options?.[{
+                'string':  'getString',
+                'channel': 'getChannel'
+            }?.[type]]?.(name, true)) {
+                optarr.push(opt);
+            };
         }
+        
     }
 
     try {
