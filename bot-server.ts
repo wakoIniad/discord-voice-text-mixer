@@ -210,11 +210,10 @@ function createShortMessageModal() {
     return modal;
 }
 
+
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand()) {
     const commandName = interaction.commandName;
-    
-
     
     if(commandName in useCommands){
         let optarr = [];
@@ -228,6 +227,7 @@ client.on('interactionCreate', async (interaction) => {
             }?.[type]]?.(name, true)) {
                 optarr.push(opt);
             };
+
         }
         
     }
