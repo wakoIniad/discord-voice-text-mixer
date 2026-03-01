@@ -26,12 +26,14 @@ enum DiscordChannelTypeAilias {
     text
 }
 
-type ProcessBase = {
+type _TupleSlide = [ 0, 0, 1 ]
+type _CurrentType = [ never, any, any ]
+type ProcessBase<Depth extends 0|1|2 = 2> = {
     name: string,
     description: string,
-    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_return?: any) => boolean,
+    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_return?: any) => any,
 }&({
-    subcommands?: ProcessBase[]
+    subcommands: _CurrentType[Depth] & ProcessBase<_TupleSlide[Depth]>[]
 }|{
     requiredOptions: {
         name: string,
@@ -44,29 +46,6 @@ type ProcessBase = {
 type Process = {
     processType: ProcessTypeAilias,
 } & ProcessBase;
-
-export const SubProcessDefine: {[key: string]: Process} = {
-    "board.reflectMode": {
-        "name": "aaa",
-        "processType": ProcessTypeAilias.command,
-        "description": "a",
-        "requiredOptions": [
-            { 
-                name: "opt_name_A", 
-                type: DiscordCommandOptionAilias.channel,
-                description: ""
-            }
-        ],
-        "handler": function() {
-            
-            return true;
-        }
-    }
-}
-
-function override({process}: {process: string}) {
-    SubProcessDefine[process]
-}
 
 const context: {
     text?: Discord.TextChannel,
@@ -99,10 +78,11 @@ class VoiceChatLogManager {
     }
 }
 
-interface TranscribeConfigure {
+type TranscribeConfigure = {
     language: string,
     model: string,
 }
+
 class ConfigureManager<T extends { [key: string]: any } = { [key: string]: any }> {
     config: T;
     constructor(public path: string) {
@@ -117,24 +97,39 @@ class ConfigureManager<T extends { [key: string]: any } = { [key: string]: any }
         JSON.stringify(this.config);
         fs.writeFileSync(this.path, JSON.stringify(this.config), {encoding: 'utf-8'});
     }
+    entries(targetHashMap: keyof typeof this.SettingChoices): {
+        name: string,
+        value: string,
+    }[]{
+        const hashMap = this.SettingChoices[targetHashMap];
+        return Object.entries(hashMap).map(([name, value]) => ({name: name, value: value}));
+    }
+    SettingChoices = {
+    Model: {
+      TINY : 'tiny',
+      TINY_EN : 'tiny.en',
+      BASE : 'base',
+      BASE_EN : 'base.en',
+      SMALL : 'small',
+      SMALL_EN : 'small.en',
+      MEDIUM : 'medium',
+      MEDIUM_EN : 'medium.en',
+      LARGE_V1 : 'large-v1',
+      LARGE : 'large',
+      LARGE_V3_TURBO : 'large-v3-turbo'
+    },
+    Language: {
+        japanese: 'ja',
+        english: 'en',
+        auto: 'auto'
+    }
+}
 }
 const configureManager = new ConfigureManager<TranscribeConfigure>(
     path.join(__dirname, 'configure/transcribe.json')
 );
 
-const ModelName = {
-  TINY : 'tiny',
-  TINY_EN : 'tiny.en',
-  BASE : 'base',
-  BASE_EN : 'base.en',
-  SMALL : 'small',
-  SMALL_EN : 'small.en',
-  MEDIUM : 'medium',
-  MEDIUM_EN : 'medium.en',
-  LARGE_V1 : 'large-v1',
-  LARGE : 'large',
-  LARGE_V3_TURBO : 'large-v3-turbo'
-}
+
 const voiceChatLogManager = new VoiceChatLogManager();
 export const RootProcessDefine: {[key: string]: Process} = {
     "reflect": {
@@ -172,14 +167,12 @@ export const RootProcessDefine: {[key: string]: Process} = {
                         name: "model",
                         type: DiscordCommandOptionAilias.string,
                         description: "モデル名",
-                        choices: Object.entries(ModelName).map(([name, value]) => ({name: name, value: value}))
+                        choices: configureManager.entries('Model')
                     }
                 ],
                 "handler": function(interaction: Discord.ChatInputCommandInteraction) {
-                    const choice = interaction.options.getString('language', true);
-                    configureManager.config.language = choice;
-                    configureManager.save();
-                    return true;
+                    const choice = interaction.options.getString('model', true);
+                    return [ 'model', choice ];
                 }
             },
             {
@@ -190,21 +183,26 @@ export const RootProcessDefine: {[key: string]: Process} = {
                         name: "language", 
                         type: DiscordCommandOptionAilias.string,
                         description: "voice channel",
-                        choices: [{'name': 'auto', 'value': 'auto'}, {'name': 'japanese', 'value': 'ja'}, {'name': 'english', 'value': 'en'}],
+                        choices: configureManager.entries('Language'),
                     },
                 ],
                 "handler": function(interaction: Discord.ChatInputCommandInteraction) {
                     const choice = interaction.options.getString('language', true);
-                    configureManager.config.language = choice;
-                    configureManager.save();
-                    return true;
+                    return [ 'language', choice ];
                 }
             },
         ],
-
-        "handler": function(interaction: Discord.ChatInputCommandInteraction) {
-            const choice = interaction.options.getString('model', true);
-            configureManager.config.model = choice;
+        "handler": function(
+            interaction: Discord.ChatInputCommandInteraction, 
+            subhandler_return: {
+                name: keyof typeof configureManager.config,
+                value: string
+            }
+        ) {
+            const { name, value } = subhandler_return;
+            if(name in configureManager.config) {
+                configureManager.config[name] = value;
+            }
             configureManager.save();
             return true;
         }
@@ -286,36 +284,57 @@ const Commands = [];
 for(const [name, content] of Object.entries(RootProcessDefine)) {
     const {processType} = content;
     if(processType === ProcessTypeAilias.command) {
-        const builder = new Discord.SlashCommandBuilder()
-        .setName(name);
-        for(const {name, type, description, ...rest} of content.requiredOptions) {
-            const base = (option: any) => 
-                (rest.choices ? option.addChoices(...rest.choices) : option,
-                option.setName(name)
-                .setDescription(description)
-                .setRequired(true));
-                    
-            switch(type) {
-                case DiscordCommandOptionAilias.channel:
-                    builder.addChannelOption(option=>
-                        rest.channelType ? base(option).addChannelTypes(rest.channelType) : base(option)
-                    );
-                    break;
-                case DiscordCommandOptionAilias.boolean:
-                    builder.addBooleanOption(base);
-                    break;
-                case DiscordCommandOptionAilias.user:
-                    builder.addBooleanOption(base);
-                    break;
-                case DiscordCommandOptionAilias.string:
-                    builder.addBooleanOption(base);
-                    break;
-                case DiscordCommandOptionAilias.integer:
-                    builder.addUserOption(base);
-                    break;
+
+        function optionRegister<
+            T extends Discord.SlashCommandBuilder|
+            Discord.SlashCommandSubcommandBuilder|
+            Discord.SlashCommandSubcommandGroupBuilder
+        >(
+            base: T,
+            entry: ProcessBase,
+            _d = 0
+        ):T {
+            base.setName(entry.name);
+            base.setDescription(entry.description);
+
+            if('subcommands' in content)
+            for(const subentry of content.subcommands) {
+                builder.addSubcommand(sub=>optionRegister<Discord.SlashCommandSubcommandBuilder>(sub, subentry, _d+1));
             }
-            Commands.push(builder);
+            else if('requiredOptions' in content)
+            for(const {name, type, description, ...rest} of content.requiredOptions) {
+                const base = (option: any) => 
+                    (rest.choices ? option.addChoices(...rest.choices) : option,
+                    option.setName(name)
+                    .setDescription(description)
+                    .setRequired(true));
+
+                switch(type) {
+                    case DiscordCommandOptionAilias.channel:
+                        builder.addChannelOption(option=>
+                            rest.channelType ? base(option).addChannelTypes(rest.channelType) : base(option)
+                        );
+                        break;
+                    case DiscordCommandOptionAilias.boolean:
+                        builder.addBooleanOption(base);
+                        break;
+                    case DiscordCommandOptionAilias.user:
+                        builder.addBooleanOption(base);
+                        break;
+                    case DiscordCommandOptionAilias.string:
+                        builder.addBooleanOption(base);
+                        break;
+                    case DiscordCommandOptionAilias.integer:
+                        builder.addUserOption(base);
+                        break;
+                }
+            }
+            return base;
         }
+
+        const builder = new Discord.SlashCommandBuilder();
+        optionRegister<Discord.SlashCommandBuilder>(builder, content);
+        Commands.push(builder);
     }
 }
 
