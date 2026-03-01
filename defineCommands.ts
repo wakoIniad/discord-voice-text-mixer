@@ -26,7 +26,7 @@ enum DiscordChannelTypeAilias {
     text
 }
 
-type _TupleSlide = [ 0, 0, 1 ]
+type _TupleSlide = [ 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
 type _CurrentType = [ never, any, any ]
 type ProcessBase<Depth extends 0|1|2 = 2> = {
     name: string,
@@ -285,51 +285,72 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
     const {processType} = content;
     if(processType === ProcessTypeAilias.command) {
 
-        function optionRegister<
-            T extends Discord.SlashCommandBuilder|
-            Discord.SlashCommandSubcommandBuilder|
+        type _builderType = [
+            Discord.SlashCommandBuilder,
+            Discord.SlashCommandSubcommandBuilder,
             Discord.SlashCommandSubcommandGroupBuilder
-        >(
-            base: T,
+        ];
+        function getOptionRegister<Depth extends 0|1|2>(
             entry: ProcessBase,
-            _d = 0
-        ):T {
-            base.setName(entry.name);
-            base.setDescription(entry.description);
+            _d = 2
+        ) {
+            
+            function merged<T extends Discord.SlashCommandBuilder|
+                Discord.SlashCommandSubcommandBuilder|
+                Discord.SlashCommandSubcommandGroupBuilder
+            >(target: T) {
+                function base() {
+                    target.setName(entry.name);
+                    target.setDescription(entry.description);
+                }
+                function addOption(target) {
+                    if('requiredOptions' in entry)
+                    for(const {name, type, description, ...rest} of entry.requiredOptions) {
+                        const base = (option: any) => 
+                            (rest.choices ? option.addChoices(...rest.choices) : option,
+                            option.setName(name)
+                            .setDescription(description)
+                            .setRequired(true));
 
-            if('subcommands' in content)
-            for(const subentry of content.subcommands) {
-                builder.addSubcommand(sub=>optionRegister<Discord.SlashCommandSubcommandBuilder>(sub, subentry, _d+1));
-            }
-            else if('requiredOptions' in content)
-            for(const {name, type, description, ...rest} of content.requiredOptions) {
-                const base = (option: any) => 
-                    (rest.choices ? option.addChoices(...rest.choices) : option,
-                    option.setName(name)
-                    .setDescription(description)
-                    .setRequired(true));
+                        switch(type) {
+                            case DiscordCommandOptionAilias.channel:
+                                builder.addChannelOption(option=>
+                                    rest.channelType ? base(option).addChannelTypes(rest.channelType) : base(option)
+                                );
+                                break;
+                            case DiscordCommandOptionAilias.boolean:
+                                builder.addBooleanOption(base);
+                                break;
+                            case DiscordCommandOptionAilias.user:
+                                builder.addBooleanOption(base);
+                                break;
+                            case DiscordCommandOptionAilias.string:
+                                builder.addBooleanOption(base);
+                                break;
+                            case DiscordCommandOptionAilias.integer:
+                                builder.addUserOption(base);
+                                break;
+                        }
+                    }
+                    return base;
+                }
+                function addSubcommand() {
+                    
+                }
+                function addSubcommandGroup() {
 
-                switch(type) {
-                    case DiscordCommandOptionAilias.channel:
-                        builder.addChannelOption(option=>
-                            rest.channelType ? base(option).addChannelTypes(rest.channelType) : base(option)
-                        );
-                        break;
-                    case DiscordCommandOptionAilias.boolean:
-                        builder.addBooleanOption(base);
-                        break;
-                    case DiscordCommandOptionAilias.user:
-                        builder.addBooleanOption(base);
-                        break;
-                    case DiscordCommandOptionAilias.string:
-                        builder.addBooleanOption(base);
-                        break;
-                    case DiscordCommandOptionAilias.integer:
-                        builder.addUserOption(base);
-                        break;
+                }
+                
+                if('subcommands' in entry)
+                for(const subentry of entry.subcommands) {
+                    const f = getOptionRegister(subentry, _d-1);
+                    [addSubcommand, addSubcommandGroup]
+                }
+                else if('requiredOptions' in entry) {
+                    addOption(target);
                 }
             }
-            return base;
+            
         }
 
         const builder = new Discord.SlashCommandBuilder();
