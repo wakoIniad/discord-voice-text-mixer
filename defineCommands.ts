@@ -280,6 +280,12 @@ export const RootProcessDefine: {[key: string]: Process} = {
     }
 }
 
+
+/*type Slice<RefTuple, Indexer, Start extends number, Count extends number, 
+_Counter extends number[] = []> = 
+    RefTuple[Start] | Slice<RefTuple, Indexer, Start extends number, Count extends number, 
+[..._Counter]>;*/
+
 const Commands = [];
 for(const [name, content] of Object.entries(RootProcessDefine)) {
     const {processType} = content;
@@ -291,66 +297,76 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
             Discord.SlashCommandSubcommandGroupBuilder
         ];
         function getOptionRegister<Depth extends 0|1|2>(
-            entry: ProcessBase,
-            _d = 2
+            entry: ProcessBase
         ) {
             
-            function merged<T extends Discord.SlashCommandBuilder|
+            
+            function base(
+                target: Discord.SlashCommandBuilder|
                 Discord.SlashCommandSubcommandBuilder|
                 Discord.SlashCommandSubcommandGroupBuilder
-            >(target: T) {
-                function base() {
-                    target.setName(entry.name);
-                    target.setDescription(entry.description);
-                }
-                function addOption(target) {
-                    if('requiredOptions' in entry)
-                    for(const {name, type, description, ...rest} of entry.requiredOptions) {
-                        const base = (option: any) => 
-                            (rest.choices ? option.addChoices(...rest.choices) : option,
-                            option.setName(name)
-                            .setDescription(description)
-                            .setRequired(true));
-
-                        switch(type) {
-                            case DiscordCommandOptionAilias.channel:
-                                builder.addChannelOption(option=>
-                                    rest.channelType ? base(option).addChannelTypes(rest.channelType) : base(option)
-                                );
-                                break;
-                            case DiscordCommandOptionAilias.boolean:
-                                builder.addBooleanOption(base);
-                                break;
-                            case DiscordCommandOptionAilias.user:
-                                builder.addBooleanOption(base);
-                                break;
-                            case DiscordCommandOptionAilias.string:
-                                builder.addBooleanOption(base);
-                                break;
-                            case DiscordCommandOptionAilias.integer:
-                                builder.addUserOption(base);
-                                break;
-                        }
-                    }
-                    return base;
-                }
-                function addSubcommand() {
-                    
-                }
-                function addSubcommandGroup() {
-
-                }
-                
-                if('subcommands' in entry)
-                for(const subentry of entry.subcommands) {
-                    const f = getOptionRegister(subentry, _d-1);
-                    [addSubcommand, addSubcommandGroup]
-                }
-                else if('requiredOptions' in entry) {
-                    addOption(target);
-                }
+            ) {
+                target.setName(entry.name);
+                target.setDescription(entry.description);
+                return target;
             }
             
+            function addOption(
+                target: Discord.SlashCommandBuilder | Discord.SlashCommandSubcommandBuilder
+            ) {
+                if('requiredOptions' in entry)
+                for(const {name, type, description, ...rest} of entry.requiredOptions) {
+                    const base = (option: any) => 
+                        (rest.choices ? option.addChoices(...rest.choices) : option,
+                        option.setName(name)
+                        .setDescription(description)
+                        .setRequired(true));
+                    switch(type) {
+                        case DiscordCommandOptionAilias.channel:
+                            target.addChannelOption(option=>
+                                rest.channelType ? base(option).addChannelTypes(rest.channelType) : base(option)
+                            );
+                            break;
+                        case DiscordCommandOptionAilias.boolean:
+                            target.addBooleanOption(base);
+                            break;
+                        case DiscordCommandOptionAilias.user:
+                            target.addBooleanOption(base);
+                            break;
+                        case DiscordCommandOptionAilias.string:
+                            target.addBooleanOption(base);
+                            break;
+                        case DiscordCommandOptionAilias.integer:
+                            target.addUserOption(base);
+                            break;
+                    }
+                }
+                return target;
+            }
+            function addSubcommand(
+                target: Discord.SlashCommandBuilder | Discord.SlashCommandSubcommandGroupBuilder,
+                nextProcess: (a:Discord.SlashCommandSubcommandBuilder)=>Discord.SlashCommandSubcommandBuilder
+            ) {
+                target.addSubcommand(sub=>nextProcess(sub));
+                return target;
+            }
+            function addSubcommandGroup(
+                target: Discord.SlashCommandBuilder, 
+                nextProcess: (a:Discord.SlashCommandSubcommandGroupBuilder)=>Discord.SlashCommandSubcommandGroupBuilder
+            ) {
+                target.addSubcommandGroup(group=>nextProcess(group));
+                return target;
+            }
+                
+            if('subcommands' in entry)
+            for(const subentry of entry.subcommands) {
+                const [i, f] = getOptionRegister(subentry);
+                [addSubcommand, addSubcommandGroup][i]
+                return [i + 1, f];
+            }
+            else if('requiredOptions' in entry) {
+                return [0, (target: any)=>base(target)];
+            }
         }
 
         const builder = new Discord.SlashCommandBuilder();
