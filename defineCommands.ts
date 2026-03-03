@@ -179,7 +179,7 @@ export const RootProcessDefine: {[key: string]: Process} = {
                         name: "mode",
                         type: DiscordCommandOptionAilias.string,
                         description: "モード",
-                        choices: configureManager.entries('Debug').map(m=>JSON.stringify(m))
+                        choices: configureManager.entries('Debug').map(({name, value})=>({name, value:JSON.stringify(value)}))
                     }
                 ],
                 "handler": function(interaction: Discord.ChatInputCommandInteraction) {
@@ -423,7 +423,6 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
                         F
                     )
                     ) (f(target)) ) ) ,a => base(a) );
-                    console.log(T)
                     res[0] = i;
                     res[1].push(T);
                 }

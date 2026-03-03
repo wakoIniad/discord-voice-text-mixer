@@ -180,7 +180,7 @@ client.on('interactionCreate', async (interaction) => {
             [command, subcommandGroup, subcommand].filter(f => inference(f)).reduce((context, now) => {
                 if (context.prev) {
                     if (now && now in context.use) {
-                        context.f = ((prevf) => (i, data) => prevf(i, context.use[now].handler(i, {
+                        context.f = ((prevf) => (i, data = { from: "", value: [] }) => prevf(i, context.use[now].handler(i, {
                             from: now,
                             value: data
                         })))(context.f);

@@ -173,7 +173,7 @@ exports.RootProcessDefine = {
                         name: "mode",
                         type: DiscordCommandOptionAilias.string,
                         description: "モード",
-                        choices: configureManager.entries('Debug').map(m => JSON.stringify(m))
+                        choices: configureManager.entries('Debug').map(({ name, value }) => ({ name, value: JSON.stringify(value) }))
                     }
                 ],
                 "handler": function (interaction) {
