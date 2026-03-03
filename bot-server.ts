@@ -169,8 +169,6 @@ client.on('interactionCreate', async (interaction) => {
     const command = interaction.commandName;
     const subcommandGroup = interaction.options.getSubcommand(false);
     const subcommand = interaction.options.getSubcommand(false);
-    
-    const [dp2,dp3]:(string|null)[] = [subcommandGroup, subcommand];
 
     //type isNested<keyname extends string, outerShell extends any> = 
     //    outerShell[keyof outerShell]|isNested<keyname, outerShell[keyname]>;
@@ -178,22 +176,21 @@ client.on('interactionCreate', async (interaction) => {
     function inference<T>(e:T): e is NonNullable<T> & Exclude<0,T> {
         return !!e;
     }
-    [command, dp2, dp3].filter(f=>inference(f)).reduce((context: {
-        use:{[$:string]: Process}, prev:string|null, prevf:((...datum:any[])=>any)
+    [command, subcommandGroup, subcommand].filter(f=>inference(f)).reduce((context: {
+        use:{[$:string]: Process}, prev:string|null, prevf:((i:ci,...datum:any[])=>any)
     }, now: string)=>{
-        const { use, prev, prevf } = context;
-        if(prev) {
+        if(context.prev) {
             if(now) {
-                if(now in use) {
-                    if('subcommands' in use[now]) {
-                        context.prevf = 
-                            (data: any[])=>(i:ci)=>use[now as keyof typeof use].handler(i, data)
-                        ()=>context.prevf(
-                        )
-                        context.use = use[now].subcommands;
+                if(now in context.use) {
+                    if('subcommands' in context.use[now]) {
+                        context.prevf = ((prevf)=>(i:ci, data: any[])=>prevf(i, context.use[now as keyof typeof context.use].handler(i, {
+                            from: now,
+                            value: data
+                        })))(context.prevf);
+                        context.use = context.use[now].subcommands;
+                    } else {
+                        context.prevf(interaction, context.use[now as keyof typeof context.use].handler(interaction));
                     }
-                    //const t: ProcessBase = use[now as keyof typeof use];
-                    //context.prevf = 
                 }
             }
         } else {
@@ -201,11 +198,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         return context;
     }, { use:processDefine, prev:null, prevf: $=>$});
-    for(const dn of ) {
-        if(dn in use) {
-
-        }
-    }
+    
     if(command in processDefine){
         const use = processDefine[command];
             if(dn) {

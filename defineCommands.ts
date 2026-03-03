@@ -30,7 +30,7 @@ type _CurrentType = [ never, any, any ]
 export type ProcessBase<Depth extends 0|1|2 = 2> = {
     name: string,
     description: string,
-    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_return?: any) => any,
+    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_returns?: {from: string, value: any[]}) => any,
 }&({
     subcommands: _CurrentType[Depth] & {[$: string]:ProcessBase<_TupleSlide[Depth]>}
 }|{
@@ -81,6 +81,7 @@ class VoiceChatLogManager {
 type TranscribeConfigure = {
     language: string,
     model: string,
+    debug: boolean
 }
 
 class ConfigureManager<T extends { [key: string]: any } = { [key: string]: any }> {
@@ -132,7 +133,14 @@ class ConfigureManager<T extends { [key: string]: any } = { [key: string]: any }
 const configureManager = new ConfigureManager<TranscribeConfigure>(
     path.join(__dirname, 'configure/transcribe.json')
 );
-
+function isKeyOf(val: any, target: object): val is keyof typeof target {
+    if(val in target) return true;
+    return false;
+}
+function isMayValueOf<Target,Key extends keyof Target>(val: any, target: Target, key: Key): val is typeof target[Key]{
+    if(typeof(val) === typeof(target)) return true;
+    return false;
+}
 
 const voiceChatLogManager = new VoiceChatLogManager();
 export const RootProcessDefine: {[key: string]: Process} = {
@@ -171,11 +179,11 @@ export const RootProcessDefine: {[key: string]: Process} = {
                         name: "mode",
                         type: DiscordCommandOptionAilias.string,
                         description: "モード",
-                        choices: configureManager.entries('Debug')
+                        choices: configureManager.entries('Debug').map(m=>JSON.stringify(m))
                     }
                 ],
                 "handler": function(interaction: Discord.ChatInputCommandInteraction) {
-                    const choice = interaction.options.getBoolean('mode', true);
+                    const choice = JSON.parse(interaction.options.getString('mode', true));
                     return [ 'mode', choice ];
                 }
             },
@@ -214,14 +222,14 @@ export const RootProcessDefine: {[key: string]: Process} = {
         },
         "handler": function(
             interaction: Discord.ChatInputCommandInteraction, 
-            subhandler_return: {
-                name: keyof typeof configureManager.config,
-                value: string
-            }
+            {from, value}: {from: string, value: any[]}
         ) {
-            const { name, value } = subhandler_return;
-            if(name in configureManager.config) {
-                configureManager.config[name] = value;
+            
+            const [ item_name, item_value ] = value;
+            if(isKeyOf(item_name, configureManager.config)) {
+                if(isMayValueOf(item_value, configureManager.config, item_name)) {
+                    configureManager.config[item_name] = item_value;
+                }
             }
             configureManager.save();
             return true;
