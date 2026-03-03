@@ -163,6 +163,13 @@ function createShortMessageModal() {
 }
 
 
+
+class Oracle extends Error {
+    constructor(identity: string, ...args: any[]) {
+        super(...args)
+    };
+}
+
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand()) {
     type ci = Discord.ChatInputCommandInteraction;
@@ -176,54 +183,53 @@ client.on('interactionCreate', async (interaction) => {
     function inference<T>(e:T): e is NonNullable<T> & Exclude<0,T> {
         return !!e;
     }
-    [command, subcommandGroup, subcommand].filter(f=>inference(f)).reduce((context: {
-        use:{[$:string]: Process}, prev:string|null, f:((i:ci,...datum:any[])=>any)
-    }, now: string)=>{
-        if(context.prev) {
-            if(now && now in context.use) {
-                context.f = ((prevf)=>(i:ci, data: any[])=>prevf(i, context.use[now as keyof typeof context.use].handler(i, {
-                    from: now,
-                    value: data
-                })))(context.f);
-                if('subcommands' in context.use[now]) {
-                    context.use = context.use[now].subcommands;
+    try {
+        [command, subcommandGroup, subcommand].filter(f=>inference(f)).reduce((context: {
+            use:{[$:string]: Process}, prev:string|null, f:((i:ci,...datum:any[])=>any)
+        }, now: string)=>{
+            if(context.prev) {
+                if(now && now in context.use) {
+                    context.f = ((prevf)=>(i:ci, data: any[])=>prevf(i, context.use[now as keyof typeof context.use].handler(i, {
+                        from: now,
+                        value: data
+                    })))(context.f);
+                    if('subcommands' in context.use[now]) {
+                        context.use = context.use[now].subcommands;
+                    }
                 }
+            } else {
+                context.prev = now;
+            }
+            return context;
+        }, { use:processDefine, prev:null, f: f=>f}).f(interaction);
+    } catch(e) {
+        if(e instanceof Oracle) {
+            switch(e.cause) {
+                default:
+                    await interaction.reply({
+                      content: '未整理のエラーが発生しました',
+                      ephemeral: true
+                    });
+                    break;
             }
         } else {
-            context.prev = now;
-        }
-        return context;
-    }, { use:processDefine, prev:null, f: f=>f}).f(interaction);
-    
-    if(command in processDefine){
-        const use = processDefine[command];
-            if(dn) {
-                if('subcommands' in use) {
-                const use_dp2 = use.subcommands;
-                if(dp3) {
-
-                }
-            }
-            }
-        }
-        try {
-            processDefine[command].handler(interaction);
-        } catch {
-            
+            await interaction.reply({
+              content: '未知のエラーが発生しました',
+              ephemeral: true
+            });
         }
     }
 
-    try {
-        getCommandExcuterFunc(commandName)
-    } catch(e) {
-        if( e instanceof Error ) {
-            if( e instanceof CommandFaultError) {
-                BotMessageFormat.Error(BotMessageFormat.ERROR_TYPES.default, e);
-            } else {
-                localLogManager.SaveErrorMessage(e);
-            }
-        }
-    }
-    return;
+    //try {
+    //    getCommandExcuterFunc(commandName)
+    //} catch(e) {
+    //    if( e instanceof Error ) {
+    //        if( e instanceof CommandFaultError) {
+    //            BotMessageFormat.Error(BotMessageFormat.ERROR_TYPES.default, e);
+    //        } else {
+    //            localLogManager.SaveErrorMessage(e);
+    //        }
+    //    }
+    //}
   }
 })
