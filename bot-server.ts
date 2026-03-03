@@ -2,11 +2,12 @@
 
 import * as Discord from 'discord.js';
 import { LocalLogManager } from './error.ts';
-import { Commands as CommandDefine } from './defineCommands.js';
+import { RootProcessDefine as processDefine } from './defineCommands.js';
+import type { Process, ProcessBase } from './defineCommands.js';
 import { EndBehaviorType, VoiceConnection, joinVoiceChannel } from '@discordjs/voice';
 import { createWriteStream } from 'fs';
 
-const useCommands = ( CommandDefine as Discord.SlashCommandBuilder[])
+/*const useCommands = ( CommandDefine as Discord.SlashCommandBuilder[])
     .reduce((result: {[key: string]: Command}, cmd) => {
     const options: {type: string, name: string}[] = [];
     for(const option of cmd.options) {
@@ -16,7 +17,7 @@ const useCommands = ( CommandDefine as Discord.SlashCommandBuilder[])
     }
     result[cmd.name] = new Command(cmd.name, options, ()=>true);
     return result;
-}, {});
+}, {});*/
 
 class Command {
     constructor(
@@ -59,26 +60,6 @@ const client = new Discord.Client(
     }
 );
 
-
-// connection は既に確立されているものとします
-const receiver = connection.receiver;
-
-receiver.speaking.on('start', (userId) => {
-
-    const audioStream = receiver.subscribe(userId, {
-        end: {
-            behavior: EndBehaviorType.AfterSilence, 
-            duration: 100, 
-        },
-    });
-
-    const outputStream = createWriteStream(`./recordings/${userId}-${Date.now()}.opus`);
-    audioStream.pipe(outputStream);
-
-    audioStream.on('end', () => {
-    });
-});
-
 class Board {
     #type
     constructor(type: string) {
@@ -96,35 +77,6 @@ class Board {
 
     }
 }
-
-function getCommandExcuterFunc(commandName: string) {
-    switch(commandName) {
-        case 'monitor':
-            return function() {
-                
-            };
-        case 'connect':
-            return function() {
-
-            }
-    }
-}
-
-function sendMessage(to: Discord.Channel) {
-
-}
-
-class BotMessageFormat {
-    static ERROR_TYPES = {
-        default: Symbol('default')
-    }
-    static Error(baseIdentifier: Symbol, e: Error) {
-
-    }
-}
-
-const commandList = [
-]
 
 class CommandFaultError extends Error {
     constructor(...param: any[]) {
@@ -213,23 +165,60 @@ function createShortMessageModal() {
 
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand()) {
-    const commandName = interaction.commandName;
+    type ci = Discord.ChatInputCommandInteraction;
+    const command = interaction.commandName;
+    const subcommandGroup = interaction.options.getSubcommand(false);
+    const subcommand = interaction.options.getSubcommand(false);
     
-    if(commandName in useCommands){
-        let optarr = [];
-        for(const {type, name} of useCommands[commandName].option_names) {
-            //@ts-ignore
-            let opt;
-            //@ts-ignore
-            if(opt = interaction?.options?.[{
-                'string':  'getString',
-                'channel': 'getChannel'
-            }?.[type]]?.(name, true)) {
-                optarr.push(opt);
-            };
+    const [dp2,dp3]:(string|null)[] = [subcommandGroup, subcommand].filter(f=>f);
+
+    //type isNested<keyname extends string, outerShell extends any> = 
+    //    outerShell[keyof outerShell]|isNested<keyname, outerShell[keyname]>;
+    [command, dp2, dp3, null].reduce((context: {
+        use:{[$:string]: Process}, prev:string|null, prevf:((...datum:any[])=>any)
+    }, now: string|null)=>{
+        const { use, prev, prevf } = context;
+        if(prev) {
+            if(now) {
+                if(now in use) {
+                    if('subcommands' in use[now]) {
+                        context.use = use[now].subcommands;
+                        context.prevf()
+                    }
+                    const t: ProcessBase = use[now as keyof typeof use];
+                    context.prevf = (data: any[])=>(i:ci)=>t.handler(i, data)(
+                        
+                    );
+                }
+            } else {
+
+            }
+        } else {
+            context.prev = now;
+        }
+        return context;
+    }, { use:processDefine, prev:null, prevf: $=>null});
+    for(const dn of ) {
+        if(dn in use) {
 
         }
-        
+    }
+    if(command in processDefine){
+        const use = processDefine[command];
+            if(dn) {
+                if('subcommands' in use) {
+                const use_dp2 = use.subcommands;
+                if(dp3) {
+
+                }
+            }
+            }
+        }
+        try {
+            processDefine[command].handler(interaction);
+        } catch {
+            
+        }
     }
 
     try {

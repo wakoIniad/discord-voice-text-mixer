@@ -27,12 +27,12 @@ enum DiscordChannelTypeAilias {
 
 type _TupleSlide = [ 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
 type _CurrentType = [ never, any, any ]
-type ProcessBase<Depth extends 0|1|2 = 2> = {
+export type ProcessBase<Depth extends 0|1|2 = 2> = {
     name: string,
     description: string,
     handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_return?: any) => any,
 }&({
-    subcommands: _CurrentType[Depth] & ProcessBase<_TupleSlide[Depth]>[]
+    subcommands: _CurrentType[Depth] & {[$: string]:ProcessBase<_TupleSlide[Depth]>}
 }|{
     requiredOptions: {
         name: string,
@@ -42,9 +42,10 @@ type ProcessBase<Depth extends 0|1|2 = 2> = {
         choices?: {name: string, value: string}[]
     }[],
 });
-type Process = {
+export type Process = {
     processType: ProcessTypeAilias,
 } & ProcessBase;
+//export type ProcessPack = {[$: string]:ProcessBase}
 
 const context: {
     text?: Discord.TextChannel,
@@ -121,6 +122,10 @@ class ConfigureManager<T extends { [key: string]: any } = { [key: string]: any }
         japanese: 'ja',
         english: 'en',
         auto: 'auto'
+    },
+    Debug: {
+        on: true,
+        off: false
     }
 }
 }
@@ -157,8 +162,24 @@ export const RootProcessDefine: {[key: string]: Process} = {
         "name": "config",
         "description": "設定を設定",
         "processType": ProcessTypeAilias.command,
-        "subcommands":[ 
-            {
+        "subcommands":{
+            "debug": {
+                "name": "debug",
+                "description": "文字起こしに使うWhisperモデル",
+                "requiredOptions": [
+                    {
+                        name: "mode",
+                        type: DiscordCommandOptionAilias.string,
+                        description: "モード",
+                        choices: configureManager.entries('Debug')
+                    }
+                ],
+                "handler": function(interaction: Discord.ChatInputCommandInteraction) {
+                    const choice = interaction.options.getBoolean('mode', true);
+                    return [ 'mode', choice ];
+                }
+            },
+            "model": {
                 "name": "model",
                 "description": "文字起こしに使うWhisperモデル",
                 "requiredOptions": [
@@ -174,7 +195,7 @@ export const RootProcessDefine: {[key: string]: Process} = {
                     return [ 'model', choice ];
                 }
             },
-            {
+            "lang": {
                 "name": "lang",
                 "description": "文字起こしの言語",
                 "requiredOptions": [
@@ -190,7 +211,7 @@ export const RootProcessDefine: {[key: string]: Process} = {
                     return [ 'language', choice ];
                 }
             },
-        ],
+        },
         "handler": function(
             interaction: Discord.ChatInputCommandInteraction, 
             subhandler_return: {
@@ -255,9 +276,9 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 //PCM(標本化・離散化された生データ)
                 //圧縮する形式の一つがopus(他にもaacなど)
                 ffmpeg(audioStream.pipe(opusDecoder))
-                    //signed 16bit little endianだって
+                    //signed 16bit little endian
                     .inputFormat('s16le')
-                    //ar:audio rate ac:audio channelだって
+                    //ar:audio rate, ac:audio channel
                     .inputOptions(['-ar 48000', '-ac 2'])
                     .audioChannels(1)
                     .audioFrequency(16000)
@@ -294,15 +315,36 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
     const {processType} = content;
     if(processType === ProcessTypeAilias.command) {
 
+        type s0 = Discord.SlashCommandBuilder;
+        type s1 = Discord.SlashCommandSubcommandBuilder
+        type s2 = Discord.SlashCommandSubcommandGroupBuilder
         type _builderType = [
-            Discord.SlashCommandBuilder,
-            Discord.SlashCommandSubcommandBuilder,
-            Discord.SlashCommandSubcommandGroupBuilder
+            s0,
+            s1,
+            s1|s0,
+            s2,
+            s1|s2,
+            s0|s1|s2
         ];
-        function getOptionRegister<Depth extends 0|1|2>(
+        type _builderTypeOrder = [
+            s0, s1, s2
+        ]
+        //型パズルの途中(コンパイル後のJSはそのまま動く)
+        function getOptionRegister(
             ...entries: ProcessBase[]
-        ): [number, (t:any) => any] {
-            return entries.reduce((res, entry) => {
+        ): [number, 
+            <Depth extends 0|1|2=0,
+            >(t:_builderTypeOrder[Depth])=>_builderTypeOrder[Depth][]
+        ] {
+            return entries.reduce(
+                (
+                    res: [
+                        number, 
+                        <Depth extends 0|1|2=0,
+                        >(t:_builderTypeOrder[Depth])=>_builderTypeOrder[Depth][]
+                    ], 
+                    entry
+                ) => {
                 function base(
                     target: Discord.SlashCommandBuilder|
                     Discord.SlashCommandSubcommandBuilder|
@@ -361,24 +403,18 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
                 }
 
                 if('subcommands' in entry) {
-                    const [i, fs] = getOptionRegister(...entry.subcommands);
-                    let T = a => base(a);
-                    //@ts-ignore
+                    const [i, fs]:[
+                        number, 
+                        ((_:_builderType[5])=>_builderType[5])[]
+                    ] = getOptionRegister(...Object.values(entry.subcommands));
+
+                    let T = (a:_builderType[5]) => base(a);
                     T = fs.reduce((f, F)=> ((target) => ((
-                        (target: any) => [addSubcommand, addSubcommandGroup][i](
+                        (target:_builderType[5]) => [addSubcommand, addSubcommandGroup][i](
                         target,
                         F
-                    //@ts-ignore
                     )
                     ) (f(target)) ) ) ,a => base(a) );
-
-                    /*for(const f of entry.subcommands.map((E,at)=>[E, fs[at]]) ) {
-                        const next = (target: any) => [addSubcommand, addSubcommandGroup][i](
-                            target,
-                            f
-                        );
-                        T = (t=>(a => next(t(a))))(T);
-                    }*/
                     res[0] = i;
                     res[1].push(T);
                 }
@@ -391,7 +427,7 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
 
         const builder = new Discord.SlashCommandBuilder();
         const [_, OptionRegister] = getOptionRegister(content);
-        OptionRegister[0]<Discord.SlashCommandBuilder>(builder);
+        OptionRegister[0](builder);
         Commands.push(builder);
     }
 }
