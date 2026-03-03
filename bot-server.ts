@@ -177,27 +177,23 @@ client.on('interactionCreate', async (interaction) => {
         return !!e;
     }
     [command, subcommandGroup, subcommand].filter(f=>inference(f)).reduce((context: {
-        use:{[$:string]: Process}, prev:string|null, prevf:((i:ci,...datum:any[])=>any)
+        use:{[$:string]: Process}, prev:string|null, f:((i:ci,...datum:any[])=>any)
     }, now: string)=>{
         if(context.prev) {
-            if(now) {
-                if(now in context.use) {
-                    if('subcommands' in context.use[now]) {
-                        context.prevf = ((prevf)=>(i:ci, data: any[])=>prevf(i, context.use[now as keyof typeof context.use].handler(i, {
-                            from: now,
-                            value: data
-                        })))(context.prevf);
-                        context.use = context.use[now].subcommands;
-                    } else {
-                        context.prevf(interaction, context.use[now as keyof typeof context.use].handler(interaction));
-                    }
+            if(now && now in context.use) {
+                context.f = ((prevf)=>(i:ci, data: any[])=>prevf(i, context.use[now as keyof typeof context.use].handler(i, {
+                    from: now,
+                    value: data
+                })))(context.f);
+                if('subcommands' in context.use[now]) {
+                    context.use = context.use[now].subcommands;
                 }
             }
         } else {
             context.prev = now;
         }
         return context;
-    }, { use:processDefine, prev:null, prevf: $=>$});
+    }, { use:processDefine, prev:null, f: f=>f}).f(interaction);
     
     if(command in processDefine){
         const use = processDefine[command];
