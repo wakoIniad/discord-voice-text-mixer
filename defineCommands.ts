@@ -252,8 +252,12 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 })
                 
                 const file_path = path.join(__dirname, `tmp_${userId}_${Date.now()}.wav`)
+                //PCM(標本化・離散化された生データ)
+                //圧縮する形式の一つがopus(他にもaacなど)
                 ffmpeg(audioStream.pipe(opusDecoder))
+                    //signed 16bit little endianだって
                     .inputFormat('s16le')
+                    //ar:audio rate ac:audio channelだって
                     .inputOptions(['-ar 48000', '-ac 2'])
                     .audioChannels(1)
                     .audioFrequency(16000)
