@@ -358,16 +358,18 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
 
                 if('subcommands' in entry) {
                     const [i, fs] = getOptionRegister(...entry.subcommands);
-                    const T = base(target);
+                    let T = a => base(a);
                     for(const [subentry, f] of entry.subcommands.map((E,at)=>[E, fs[at]]) ) {
                         //const [i, f]: [number, (target: any)=>any] = getOptionRegister(subentry);
                         const next = (target: any) => [addSubcommand, addSubcommandGroup][i](
-                            T,
+                            target,
                             f
                         );
-                        res[1].push(next);                        
+                        //res[1].push(next);
+                        T = a => next(T(a))          
                     }
                     res[0] = i;
+                    res[1].push(T);
                 }
                 else if('requiredOptions' in entry)
                     res[1].push((target)=>addOption(base(target)))
