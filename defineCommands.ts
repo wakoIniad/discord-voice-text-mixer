@@ -5,7 +5,6 @@ import * as prism from 'prism-media';
 import * as ffmpeg from 'fluent-ffmpeg'
 import * as path from 'path';
 import * as fs from 'fs';
-import { timeStamp } from 'console';
 
 enum ProcessTypeAilias {
     command,
@@ -138,9 +137,9 @@ export const RootProcessDefine: {[key: string]: Process} = {
         "description": "ボイスチャンネルの内容を反映",
         "requiredOptions": [
             {
-                name: "model",
+                name: "type",
                 type: DiscordCommandOptionAilias.string,
-                description: "モデル名",
+                description: "表示タイプ",
                 choices: [
                     { name: "board", value: "board" }, 
                     { name: "channel", value: "channel" }
@@ -297,87 +296,94 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
             Discord.SlashCommandSubcommandGroupBuilder
         ];
         function getOptionRegister<Depth extends 0|1|2>(
-            entry: ProcessBase
-        ) {
-            
-            
-            function base(
-                target: Discord.SlashCommandBuilder|
-                Discord.SlashCommandSubcommandBuilder|
-                Discord.SlashCommandSubcommandGroupBuilder
-            ) {
-                target.setName(entry.name);
-                target.setDescription(entry.description);
-                return target;
-            }
-            
-            function addOption(
-                target: Discord.SlashCommandBuilder | Discord.SlashCommandSubcommandBuilder
-            ) {
-                if('requiredOptions' in entry)
-                for(const {name, type, description, ...rest} of entry.requiredOptions) {
-                    const base = (option: any) => 
-                        (rest.choices ? option.addChoices(...rest.choices) : option,
-                        option.setName(name)
-                        .setDescription(description)
-                        .setRequired(true));
-                    switch(type) {
-                        case DiscordCommandOptionAilias.channel:
-                            target.addChannelOption(option=>
-                                rest.channelType ? base(option).addChannelTypes(rest.channelType) : base(option)
-                            );
-                            break;
-                        case DiscordCommandOptionAilias.boolean:
-                            target.addBooleanOption(base);
-                            break;
-                        case DiscordCommandOptionAilias.user:
-                            target.addBooleanOption(base);
-                            break;
-                        case DiscordCommandOptionAilias.string:
-                            target.addBooleanOption(base);
-                            break;
-                        case DiscordCommandOptionAilias.integer:
-                            target.addUserOption(base);
-                            break;
-                    }
+            ...entries: ProcessBase[]
+        ): [number, (t:any) => any] {
+            return entries.reduce((res, entry) => {
+                function base(
+                    target: Discord.SlashCommandBuilder|
+                    Discord.SlashCommandSubcommandBuilder|
+                    Discord.SlashCommandSubcommandGroupBuilder
+                ) {
+                    target.setName(entry.name);
+                    target.setDescription(entry.description);
+                    return target;
                 }
-                return target;
-            }
-            function addSubcommand(
-                target: Discord.SlashCommandBuilder | Discord.SlashCommandSubcommandGroupBuilder,
-                nextProcess: (a:Discord.SlashCommandSubcommandBuilder)=>Discord.SlashCommandSubcommandBuilder
-            ) {
-                target.addSubcommand(sub=>nextProcess(sub));
-                return target;
-            }
-            function addSubcommandGroup(
-                target: Discord.SlashCommandBuilder, 
-                nextProcess: (a:Discord.SlashCommandSubcommandGroupBuilder)=>Discord.SlashCommandSubcommandGroupBuilder
-            ) {
-                target.addSubcommandGroup(group=>nextProcess(group));
-                return target;
-            }
-                
-            if('subcommands' in entry)
-            for(const subentry of entry.subcommands) {
-                const [i, f] = getOptionRegister(subentry);
-                [addSubcommand, addSubcommandGroup][i]
-                return [i + 1, f];
-            }
-            else if('requiredOptions' in entry) {
-                return [0, (target: any)=>base(target)];
-            }
+
+                function addOption(
+                    target: Discord.SlashCommandBuilder | Discord.SlashCommandSubcommandBuilder
+                ) {
+                    if('requiredOptions' in entry)
+                    for(const {name, type, description, ...rest} of entry.requiredOptions) {
+                        const base = (option: any) => 
+                            (rest.choices && option?.addChoices?.(...rest.choices),
+                            option.setName(name)
+                            .setDescription(description)
+                            .setRequired(true));
+                        switch(type) {
+                            case DiscordCommandOptionAilias.channel:
+                                target.addChannelOption(option=>
+                                    rest.channelType ? base(option).addChannelTypes(rest.channelType) : base(option)
+                                );
+                                break;
+                            case DiscordCommandOptionAilias.boolean:
+                                target.addBooleanOption(base);
+                                break;
+                            case DiscordCommandOptionAilias.user:
+                                target.addUserOption(base);
+                                break;
+                            case DiscordCommandOptionAilias.string:
+                                target.addStringOption(base);
+                                break;
+                            case DiscordCommandOptionAilias.integer:
+                                target.addIntegerOption(base);
+                                break;
+                        }
+                    }
+                    return target;
+                }
+                function addSubcommand(
+                    target: Discord.SlashCommandBuilder | Discord.SlashCommandSubcommandGroupBuilder,
+                    nextProcess: (a:Discord.SlashCommandSubcommandBuilder)=>Discord.SlashCommandSubcommandBuilder
+                ) {
+                    target.addSubcommand(sub=>nextProcess(sub));
+                    return target;
+                }
+                function addSubcommandGroup(
+                    target: Discord.SlashCommandBuilder, 
+                    nextProcess: (a:Discord.SlashCommandSubcommandGroupBuilder)=>Discord.SlashCommandSubcommandGroupBuilder
+                ) {
+                    target.addSubcommandGroup(group=>nextProcess(group));
+                    return target;
+                }
+
+                if('subcommands' in entry) {
+                    const [i, fs] = getOptionRegister(...entry.subcommands);
+                    const T = base(target);
+                    for(const [subentry, f] of entry.subcommands.map((E,at)=>[E, fs[at]]) ) {
+                        //const [i, f]: [number, (target: any)=>any] = getOptionRegister(subentry);
+                        const next = (target: any) => [addSubcommand, addSubcommandGroup][i](
+                            T,
+                            f
+                        );
+                        res[1].push(next);                        
+                    }
+                    res[0] = i;
+                }
+                else if('requiredOptions' in entry)
+                    res[1].push((target)=>addOption(base(target)))
+                return res;
+                //}
+            },[0,[]])
         }
 
         const builder = new Discord.SlashCommandBuilder();
-        optionRegister<Discord.SlashCommandBuilder>(builder, content);
+        const [_, OptionRegister] = getOptionRegister(content);
+        OptionRegister[0]<Discord.SlashCommandBuilder>(builder);
         Commands.push(builder);
     }
 }
 
 export const registerCommandsList = Commands.map(command => command.toJSON());
-RootProcessDefine;
-SubProcessDefine; 
 
 //
 //

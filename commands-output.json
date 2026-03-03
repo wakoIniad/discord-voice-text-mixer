@@ -1,72 +1,116 @@
 [
   {
-    "options": [],
-    "name": "monitor",
-    "description": "サーバーの情報を公開",
-    "type": 1
-  },
-  {
-    "options": [],
-    "name": "board",
-    "description": "現在の発言内容がリアルタイムで更新されるボードを表示",
+    "options": [
+      {
+        "type": 3,
+        "choices": [
+          {
+            "name": "board",
+            "value": "board"
+          },
+          {
+            "name": "channel",
+            "value": "channel"
+          }
+        ],
+        "name": "type",
+        "description": "表示タイプ",
+        "required": true
+      }
+    ],
+    "name": "reflect",
+    "description": "ボイスチャンネルの内容を反映",
     "type": 1
   },
   {
     "options": [
       {
-        "type": 3,
+        "type": 1,
+        "name": "model",
+        "description": "文字起こしに使うWhisperモデル",
+        "options": [
+          {
+            "type": 3,
+            "choices": [
+              {
+                "name": "TINY",
+                "value": "tiny"
+              },
+              {
+                "name": "TINY_EN",
+                "value": "tiny.en"
+              },
+              {
+                "name": "BASE",
+                "value": "base"
+              },
+              {
+                "name": "BASE_EN",
+                "value": "base.en"
+              },
+              {
+                "name": "SMALL",
+                "value": "small"
+              },
+              {
+                "name": "SMALL_EN",
+                "value": "small.en"
+              },
+              {
+                "name": "MEDIUM",
+                "value": "medium"
+              },
+              {
+                "name": "MEDIUM_EN",
+                "value": "medium.en"
+              },
+              {
+                "name": "LARGE_V1",
+                "value": "large-v1"
+              },
+              {
+                "name": "LARGE",
+                "value": "large"
+              },
+              {
+                "name": "LARGE_V3_TURBO",
+                "value": "large-v3-turbo"
+              }
+            ],
+            "name": "model",
+            "description": "モデル名",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "name": "config",
+    "description": "設定を設定",
+    "type": 1
+  },
+  {
+    "options": [
+      {
+        "channel_types": [
+          2
+        ],
         "name": "voice",
-        "description": "ボイスチャンネル",
-        "required": true
+        "description": "voice channel",
+        "required": true,
+        "type": 7
       },
       {
-        "type": 3,
+        "channel_types": [
+          2
+        ],
         "name": "text",
-        "description": "テキストチャンネル",
-        "required": true
-      }
-    ],
-    "name": "connect",
-    "description": "指定されたボイスチャットとテキストチャットをリンク",
-    "type": 1
-  },
-  {
-    "options": [
-      {
-        "type": 3,
-        "name": "format",
-        "description": "フォーマット文字列",
-        "required": true
-      }
-    ],
-    "name": "set-formatter",
-    "description": "文字起こしのフォーマットを指定してJSON形式から変換",
-    "type": 1
-  },
-  {
-    "options": [
-      {
-        "type": 3,
-        "name": "url",
-        "description": "ポスト先URL",
-        "required": true
-      }
-    ],
-    "name": "transfer-url",
-    "description": "議事録などのために、文字起こしの転送先URLを追加(JSON形式)",
-    "type": 1
-  },
-  {
-    "options": [
-      {
-        "name": "text",
-        "description": "チャンネル",
+        "description": "text channel",
         "required": true,
         "type": 7
       }
     ],
-    "name": "transfer-channel",
-    "description": "議事録などのために、文字起こしの転送先チャンネルを追加",
+    "name": "connect",
+    "description": "ボイスチャンネルとテキストチャンネルを設定",
     "type": 1
   }
 ]
