@@ -1,11 +1,8 @@
 //import {  } from 'nodejs-whisper';
 
 import * as Discord from 'discord.js';
-import { LocalLogManager } from './error.ts';
 import { RootProcessDefine as processDefine } from './defineCommands.js';
 import type { Process, ProcessBase } from './defineCommands.js';
-import { EndBehaviorType, VoiceConnection, joinVoiceChannel } from '@discordjs/voice';
-import { createWriteStream } from 'fs';
 
 /*const useCommands = ( CommandDefine as Discord.SlashCommandBuilder[])
     .reduce((result: {[key: string]: Command}, cmd) => {
@@ -19,6 +16,8 @@ import { createWriteStream } from 'fs';
     return result;
 }, {});*/
 
+/*
+import { LocalLogManager } from './error.ts';
 class Command {
     constructor(
         public name: string, 
@@ -163,7 +162,7 @@ function createShortMessageModal() {
 }
 
 
-
+*/
 class Oracle extends Error {
     constructor(identity: string, ...args: any[]) {
         super(...args)
@@ -189,7 +188,7 @@ client.on('interactionCreate', async (interaction) => {
         }, now: string)=>{
             if(context.prev) {
                 if(now && now in context.use) {
-                    context.f = ((prevf)=>(i:ci, data: any[])=>prevf(i, context.use[now as keyof typeof context.use].handler(i, {
+                    context.f = ((prevf)=>(i:ci, data={from:"", value:[]})=>prevf(i, context.use[now as keyof typeof context.use].handler(i, {
                         from: now,
                         value: data
                     })))(context.f);

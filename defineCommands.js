@@ -60,6 +60,7 @@ var DiscordChannelTypeAilias;
     DiscordChannelTypeAilias[DiscordChannelTypeAilias["voice"] = 0] = "voice";
     DiscordChannelTypeAilias[DiscordChannelTypeAilias["text"] = 1] = "text";
 })(DiscordChannelTypeAilias || (DiscordChannelTypeAilias = {}));
+//export type ProcessPack = {[$: string]:ProcessBase}
 const context = {};
 class VoiceChatLogManager {
     log;
@@ -117,10 +118,24 @@ class ConfigureManager {
             japanese: 'ja',
             english: 'en',
             auto: 'auto'
+        },
+        Debug: {
+            on: true,
+            off: false
         }
     };
 }
 const configureManager = new ConfigureManager(path.join(__dirname, 'configure/transcribe.json'));
+function isKeyOf(val, target) {
+    if (val in target)
+        return true;
+    return false;
+}
+function isMayValueOf(val, target, key) {
+    if (typeof (val) === typeof (target))
+        return true;
+    return false;
+}
 const voiceChatLogManager = new VoiceChatLogManager();
 exports.RootProcessDefine = {
     "reflect": {
@@ -149,8 +164,24 @@ exports.RootProcessDefine = {
         "name": "config",
         "description": "設定を設定",
         "processType": ProcessTypeAilias.command,
-        "subcommands": [
-            {
+        "subcommands": {
+            "debug": {
+                "name": "debug",
+                "description": "文字起こしに使うWhisperモデル",
+                "requiredOptions": [
+                    {
+                        name: "mode",
+                        type: DiscordCommandOptionAilias.string,
+                        description: "モード",
+                        choices: configureManager.entries('Debug').map(m => JSON.stringify(m))
+                    }
+                ],
+                "handler": function (interaction) {
+                    const choice = JSON.parse(interaction.options.getString('mode', true));
+                    return ['mode', choice];
+                }
+            },
+            "model": {
                 "name": "model",
                 "description": "文字起こしに使うWhisperモデル",
                 "requiredOptions": [
@@ -166,7 +197,7 @@ exports.RootProcessDefine = {
                     return ['model', choice];
                 }
             },
-            {
+            "lang": {
                 "name": "lang",
                 "description": "文字起こしの言語",
                 "requiredOptions": [
@@ -182,11 +213,13 @@ exports.RootProcessDefine = {
                     return ['language', choice];
                 }
             },
-        ],
-        "handler": function (interaction, subhandler_return) {
-            const { name, value } = subhandler_return;
-            if (name in configureManager.config) {
-                configureManager.config[name] = value;
+        },
+        "handler": function (interaction, { from, value }) {
+            const [item_name, item_value] = value;
+            if (isKeyOf(item_name, configureManager.config)) {
+                if (isMayValueOf(item_value, configureManager.config, item_name)) {
+                    configureManager.config[item_name] = item_value;
+                }
             }
             configureManager.save();
             return true;
@@ -235,8 +268,12 @@ exports.RootProcessDefine = {
                     chunks.push(chunk);
                 });
                 const file_path = path.join(__dirname, `tmp_${userId}_${Date.now()}.wav`);
+                //PCM(標本化・離散化された生データ)
+                //圧縮する形式の一つがopus(他にもaacなど)
                 ffmpeg(audioStream.pipe(opusDecoder))
+                    //signed 16bit little endian
                     .inputFormat('s16le')
+                    //ar:audio rate, ac:audio channel
                     .inputOptions(['-ar 48000', '-ac 2'])
                     .audioChannels(1)
                     .audioFrequency(16000)
@@ -269,6 +306,7 @@ const Commands = [];
 for (const [name, content] of Object.entries(exports.RootProcessDefine)) {
     const { processType } = content;
     if (processType === ProcessTypeAilias.command) {
+        //型パズルの途中(コンパイル後のJSはそのまま動く)
         function getOptionRegister(...entries) {
             return entries.reduce((res, entry) => {
                 function base(target) {
@@ -312,19 +350,9 @@ for (const [name, content] of Object.entries(exports.RootProcessDefine)) {
                     return target;
                 }
                 if ('subcommands' in entry) {
-                    const [i, fs] = getOptionRegister(...entry.subcommands);
-                    let T = a => base(a);
-                    //@ts-ignore
-                    T = fs.reduce((f, F) => ((target) => (((target) => [addSubcommand, addSubcommandGroup][i](target, F
-                    //@ts-ignore
-                    ))(f(target)))), a => base(a));
-                    /*for(const f of entry.subcommands.map((E,at)=>[E, fs[at]]) ) {
-                        const next = (target: any) => [addSubcommand, addSubcommandGroup][i](
-                            target,
-                            f
-                        );
-                        T = (t=>(a => next(t(a))))(T);
-                    }*/
+                    const [i, fs] = getOptionRegister(...Object.values(entry.subcommands));
+                    let T = (a) => base(a);
+                    T = fs.reduce((f, F) => ((target) => (((target) => [addSubcommand, addSubcommandGroup][i](target, F))(f(target)))), a => base(a));
                     res[0] = i;
                     res[1].push(T);
                 }

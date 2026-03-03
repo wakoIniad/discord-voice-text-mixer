@@ -30,7 +30,7 @@ type _CurrentType = [ never, any, any ]
 export type ProcessBase<Depth extends 0|1|2 = 2> = {
     name: string,
     description: string,
-    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_returns?: {from: string, value: any[]}) => any,
+    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_returns: {from: string, value: any[]}) => any,
 }&({
     subcommands: _CurrentType[Depth] & {[$: string]:ProcessBase<_TupleSlide[Depth]>}
 }|{
@@ -423,6 +423,7 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
                         F
                     )
                     ) (f(target)) ) ) ,a => base(a) );
+                    console.log(T)
                     res[0] = i;
                     res[1].push(T);
                 }
