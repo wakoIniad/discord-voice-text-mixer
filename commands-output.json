@@ -82,6 +82,33 @@
             "required": true
           }
         ]
+      },
+      {
+        "type": 1,
+        "name": "lang",
+        "description": "文字起こしの言語",
+        "options": [
+          {
+            "type": 3,
+            "choices": [
+              {
+                "name": "japanese",
+                "value": "ja"
+              },
+              {
+                "name": "english",
+                "value": "en"
+              },
+              {
+                "name": "auto",
+                "value": "auto"
+              }
+            ],
+            "name": "language",
+            "description": "voice channel",
+            "required": true
+          }
+        ]
       }
     ],
     "name": "config",

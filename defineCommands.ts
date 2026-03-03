@@ -366,7 +366,7 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
                             f
                         );
                         //res[1].push(next);
-                        T = a => next(T(a))          
+                        T = (t=>(a => next(t(a))))(T);
                     }
                     res[0] = i;
                     res[1].push(T);

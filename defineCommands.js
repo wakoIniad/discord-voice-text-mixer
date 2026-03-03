@@ -318,7 +318,7 @@ for (const [name, content] of Object.entries(exports.RootProcessDefine)) {
                         //const [i, f]: [number, (target: any)=>any] = getOptionRegister(subentry);
                         const next = (target) => [addSubcommand, addSubcommandGroup][i](target, f);
                         //res[1].push(next);
-                        T = a => next(T(a));
+                        T = (t => (a => next(t(a))))(T);
                     }
                     res[0] = i;
                     res[1].push(T);
