@@ -307,6 +307,17 @@ export const RootProcessDefine: {[key: string]: Process} = {
                     })
                     .on('error', (err:any) => { console.error(err); });
             });
+            
+            console.info(
+                'connect', 
+                voiceChannel.name, 
+                textChannel.name,
+                connection, receiver
+            );
+            interaction.reply({
+                content: 'test',
+                flags: Discord.MessageFlags.Ephemeral
+            });
             return true;
         }
     }

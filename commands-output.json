@@ -26,6 +26,29 @@
     "options": [
       {
         "type": 1,
+        "name": "debug",
+        "description": "文字起こしに使うWhisperモデル",
+        "options": [
+          {
+            "type": 3,
+            "choices": [
+              {
+                "name": "on",
+                "value": "true"
+              },
+              {
+                "name": "off",
+                "value": "false"
+              }
+            ],
+            "name": "mode",
+            "description": "モード",
+            "required": true
+          }
+        ]
+      },
+      {
+        "type": 1,
         "name": "model",
         "description": "文字起こしに使うWhisperモデル",
         "options": [

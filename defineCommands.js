@@ -294,6 +294,11 @@ exports.RootProcessDefine = {
                 })
                     .on('error', (err) => { console.error(err); });
             });
+            console.info('connect', voiceChannel.name, textChannel.name, connection, receiver);
+            interaction.reply({
+                content: 'test',
+                flags: Discord.MessageFlags.Ephemeral
+            });
             return true;
         }
     }

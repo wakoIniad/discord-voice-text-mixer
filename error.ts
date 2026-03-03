@@ -41,7 +41,7 @@ export class MyLib {
     ): ((c:any) => string) {
         return function(raw: any): string {
             raw = preprocess(raw);
-            return postprocess([char.repeat(Math.max(0, length - raw.length)), raw]).join()
+            return postprocess([char.repeat(Math.max(0, length - raw.length)), raw]).join('')
         }
     }
 

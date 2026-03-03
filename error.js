@@ -39,7 +39,7 @@ class MyLib {
     static getPaddingOp(char, length, preprocess = $ => String($), postprocess = $ => $) {
         return function (raw) {
             raw = preprocess(raw);
-            return postprocess([char.repeat(Math.max(0, length - raw.length)), raw]).join();
+            return postprocess([char.repeat(Math.max(0, length - raw.length)), raw]).join('');
         };
     }
     static ANSIFormatTarget = {
