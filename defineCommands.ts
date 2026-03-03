@@ -360,11 +360,13 @@ for(const [name, content] of Object.entries(RootProcessDefine)) {
                     const [i, fs] = getOptionRegister(...entry.subcommands);
                     let T = a => base(a);
                     //@ts-ignore
-                    fs.reduce((f, F)=> ((target: any) => [addSubcommand, addSubcommandGroup][i](
+                    T = fs.reduce((f, F)=> ((target) => ((
+                        (target: any) => [addSubcommand, addSubcommandGroup][i](
                         target,
                         F
                     //@ts-ignore
-                    )(f(target))) ,a => base(a));
+                    )
+                    ) (f(target)) ) ) ,a => base(a) );
 
                     /*for(const f of entry.subcommands.map((E,at)=>[E, fs[at]]) ) {
                         const next = (target: any) => [addSubcommand, addSubcommandGroup][i](
