@@ -170,34 +170,37 @@ client.on('interactionCreate', async (interaction) => {
     const subcommandGroup = interaction.options.getSubcommand(false);
     const subcommand = interaction.options.getSubcommand(false);
     
-    const [dp2,dp3]:(string|null)[] = [subcommandGroup, subcommand].filter(f=>f);
+    const [dp2,dp3]:(string|null)[] = [subcommandGroup, subcommand];
 
     //type isNested<keyname extends string, outerShell extends any> = 
     //    outerShell[keyof outerShell]|isNested<keyname, outerShell[keyname]>;
-    [command, dp2, dp3, null].reduce((context: {
+
+    function inference<T>(e:T): e is NonNullable<T> & Exclude<0,T> {
+        return !!e;
+    }
+    [command, dp2, dp3].filter(f=>inference(f)).reduce((context: {
         use:{[$:string]: Process}, prev:string|null, prevf:((...datum:any[])=>any)
-    }, now: string|null)=>{
+    }, now: string)=>{
         const { use, prev, prevf } = context;
         if(prev) {
             if(now) {
                 if(now in use) {
                     if('subcommands' in use[now]) {
+                        context.prevf = 
+                            (data: any[])=>(i:ci)=>use[now as keyof typeof use].handler(i, data)
+                        ()=>context.prevf(
+                        )
                         context.use = use[now].subcommands;
-                        context.prevf()
                     }
-                    const t: ProcessBase = use[now as keyof typeof use];
-                    context.prevf = (data: any[])=>(i:ci)=>t.handler(i, data)(
-                        
-                    );
+                    //const t: ProcessBase = use[now as keyof typeof use];
+                    //context.prevf = 
                 }
-            } else {
-
             }
         } else {
             context.prev = now;
         }
         return context;
-    }, { use:processDefine, prev:null, prevf: $=>null});
+    }, { use:processDefine, prev:null, prevf: $=>$});
     for(const dn of ) {
         if(dn in use) {
 
