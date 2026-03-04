@@ -32,13 +32,16 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerCommandsList = exports.RootProcessDefine = void 0;
 const Discord = __importStar(require("discord.js"));
 const DiscordVoice = __importStar(require("@discordjs/voice"));
 const Whisper = __importStar(require("nodejs-whisper"));
 const prism = __importStar(require("prism-media"));
-const ffmpeg = __importStar(require("fluent-ffmpeg"));
+const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 var ProcessTypeAilias;
@@ -82,18 +85,17 @@ class VoiceChatLogManager {
 class ConfigureManager {
     path;
     config;
-    constructor(path) {
+    constructor(path, init) {
         this.path = path;
         try {
             const raw = fs.readFileSync(path, { encoding: 'utf-8' });
             this.config = JSON.parse(raw);
         }
         catch {
-            this.config = {};
+            this.config = init ?? {};
         }
     }
     save() {
-        JSON.stringify(this.config);
         fs.writeFileSync(this.path, JSON.stringify(this.config), { encoding: 'utf-8' });
     }
     entries(targetHashMap) {
@@ -125,17 +127,22 @@ class ConfigureManager {
         }
     };
 }
-const configureManager = new ConfigureManager(path.join(__dirname, 'configure/transcribe.json'));
+const configureManager = new ConfigureManager(path.join(__dirname, 'configure/transcribe.json'), {
+    'debug': true,
+    'language': 'ja',
+    'model': 'large-v3-turbo'
+});
 function isKeyOf(val, target) {
     if (val in target)
         return true;
     return false;
 }
 function isMayValueOf(val, target, key) {
-    if (typeof (val) === typeof (target))
+    if (typeof (val) === typeof (target[key]))
         return true;
     return false;
 }
+let usingConnection;
 const voiceChatLogManager = new VoiceChatLogManager();
 exports.RootProcessDefine = {
     "reflect": {
@@ -178,7 +185,7 @@ exports.RootProcessDefine = {
                 ],
                 "handler": function (interaction) {
                     const choice = JSON.parse(interaction.options.getString('mode', true));
-                    return ['mode', choice];
+                    return ['debug', choice];
                 }
             },
             "model": {
@@ -219,9 +226,9 @@ exports.RootProcessDefine = {
             if (isKeyOf(item_name, configureManager.config)) {
                 if (isMayValueOf(item_value, configureManager.config, item_name)) {
                     configureManager.config[item_name] = item_value;
+                    configureManager.save();
                 }
             }
-            configureManager.save();
             return true;
         }
     },
@@ -246,16 +253,25 @@ exports.RootProcessDefine = {
         "handler": function (interaction) {
             const voiceChannel = interaction.options.getChannel('voice', true);
             const textChannel = interaction.options.getChannel('text', true);
-            const connection = DiscordVoice.joinVoiceChannel({
+            if (usingConnection)
+                usingConnection.destroy();
+            const connection = usingConnection = DiscordVoice.joinVoiceChannel({
                 channelId: voiceChannel.id,
                 guildId: voiceChannel.guild.id,
-                adapterCreator: voiceChannel.guild.voiceAdapterCreator
+                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+                selfDeaf: false,
+                selfMute: false,
             });
             context.voice = voiceChannel;
             context.text = textChannel;
             context.connection = connection;
             const receiver = connection.receiver;
             const opusDecoder = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 });
+            connection.on('error', console.log);
+            connection.on('stateChange', console.log);
+            receiver.speaking.on('end', (userId) => {
+                console.log(userId, "end");
+            });
             receiver.speaking.on('start', (userId) => {
                 const chunks = [];
                 const audioStream = receiver.subscribe(userId, {
@@ -264,13 +280,13 @@ exports.RootProcessDefine = {
                         duration: 100,
                     },
                 });
-                audioStream.pipe(opusDecoder).on('data', chunk => {
+                audioStream.pipe(opusDecoder).on('data', (chunk) => {
                     chunks.push(chunk);
                 });
                 const file_path = path.join(__dirname, `tmp_${userId}_${Date.now()}.wav`);
                 //PCM(標本化・離散化された生データ)
                 //圧縮する形式の一つがopus(他にもaacなど)
-                ffmpeg(audioStream.pipe(opusDecoder))
+                (0, fluent_ffmpeg_1.default)(audioStream.pipe(opusDecoder))
                     //signed 16bit little endian
                     .inputFormat('s16le')
                     //ar:audio rate, ac:audio channel
@@ -280,21 +296,20 @@ exports.RootProcessDefine = {
                     .toFormat('wav')
                     .save(file_path)
                     .on('end', async () => {
-                    const usingModelName = configureManager.config.model ?? 'large-v3-turbo';
+                    const usingModelName = configureManager.config.model;
                     const text = await Whisper.nodewhisper(file_path, {
                         autoDownloadModelName: usingModelName,
                         modelName: usingModelName,
                         removeWavFileAfterTranscription: true,
                         withCuda: true,
                         whisperOptions: {
-                            language: configureManager.config.language ?? 'ja'
+                            language: configureManager.config.language
                         }
                     });
                     voiceChatLogManager.insert(userId, text);
                 })
                     .on('error', (err) => { console.error(err); });
             });
-            console.info('connect', voiceChannel.name, textChannel.name, connection, receiver);
             interaction.reply({
                 content: 'test',
                 flags: Discord.MessageFlags.Ephemeral

@@ -2,7 +2,7 @@ import * as Discord from 'discord.js';
 import * as DiscordVoice from '@discordjs/voice';
 import * as Whisper from 'nodejs-whisper';
 import * as prism from 'prism-media';
-import * as ffmpeg from 'fluent-ffmpeg'
+import ffmpeg from 'fluent-ffmpeg'
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -25,12 +25,13 @@ enum DiscordChannelTypeAilias {
     text
 }
 
-type _TupleSlide = [ 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
-type _CurrentType = [ never, any, any ]
+type _TupleSlide = [ 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ];
+type _CurrentType = [ never, any, any ];
+type HandlerContext = {from: string, value: any[], arguments: RequiredArguments};
 export type ProcessBase<Depth extends 0|1|2 = 2> = {
     name: string,
     description: string,
-    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_returns: {from: string, value: any[]}) => any,
+    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_returns: HandlerContext) => any,
 }&({
     subcommands: _CurrentType[Depth] & {[$: string]:ProcessBase<_TupleSlide[Depth]>}
 }|{
@@ -80,22 +81,21 @@ class VoiceChatLogManager {
 
 type TranscribeConfigure = {
     language: string,
-    model: string,
+    model: ConfigureManager["SettingChoices"]["Model"][keyof ConfigureManager["SettingChoices"]["Model"]],
     debug: boolean
 }
 
 class ConfigureManager<T extends { [key: string]: any } = { [key: string]: any }> {
     config: T;
-    constructor(public path: string) {
+    constructor(public path: string, init?: T) {
         try {
             const raw: string = fs.readFileSync(path, {encoding: 'utf-8'});
             this.config = JSON.parse(raw);
         } catch {
-            this.config = {} as T;
+            this.config = init??{} as T;
         }
     }
     save() {
-        JSON.stringify(this.config);
         fs.writeFileSync(this.path, JSON.stringify(this.config), {encoding: 'utf-8'});
     }
     entries(targetHashMap: keyof typeof this.SettingChoices): {
@@ -131,16 +131,29 @@ class ConfigureManager<T extends { [key: string]: any } = { [key: string]: any }
 }
 }
 const configureManager = new ConfigureManager<TranscribeConfigure>(
-    path.join(__dirname, 'configure/transcribe.json')
+    path.join(__dirname, 'configure/transcribe.json'), {
+        'debug': true,
+        'language': 'ja',
+        'model': 'large-v3-turbo'
+    }
 );
 function isKeyOf(val: any, target: object): val is keyof typeof target {
     if(val in target) return true;
     return false;
 }
 function isMayValueOf<Target,Key extends keyof Target>(val: any, target: Target, key: Key): val is typeof target[Key]{
-    if(typeof(val) === typeof(target)) return true;
+    if(typeof(val) === typeof(target[key])) return true;
     return false;
 }
+
+interface RequiredArguments {
+    voiceChannel: Discord.VoiceChannel,
+    textChannel: Discord.TextChannel,
+    targetUser: Discord.User,
+    stringArgument: string,
+    value: string|boolean|number,
+}
+let usingConnection:DiscordVoice.VoiceConnection;
 
 const voiceChatLogManager = new VoiceChatLogManager();
 export const RootProcessDefine: {[key: string]: Process} = {
@@ -184,7 +197,7 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 ],
                 "handler": function(interaction: Discord.ChatInputCommandInteraction) {
                     const choice = JSON.parse(interaction.options.getString('mode', true));
-                    return [ 'mode', choice ];
+                    return [ 'debug', choice ];
                 }
             },
             "model": {
@@ -229,9 +242,9 @@ export const RootProcessDefine: {[key: string]: Process} = {
             if(isKeyOf(item_name, configureManager.config)) {
                 if(isMayValueOf(item_value, configureManager.config, item_name)) {
                     configureManager.config[item_name] = item_value;
+                    configureManager.save();
                 }
             }
-            configureManager.save();
             return true;
         }
     },
@@ -253,13 +266,16 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 description: "text channel"
             }
         ],
-        "handler": function(interaction: Discord.ChatInputCommandInteraction) {
-            const voiceChannel: Discord.VoiceChannel = interaction.options.getChannel('voice', true);
-            const textChannel: Discord.TextChannel = interaction.options.getChannel('text', true);
-            const connection: DiscordVoice.VoiceConnection = DiscordVoice.joinVoiceChannel({
+        "handler": function(interaction: Discord.ChatInputCommandInteraction, handlerContext: HandlerContext) {
+            const { voiceChannel, textChannel } = handlerContext.arguments;
+
+            if(usingConnection)usingConnection.destroy();
+            const connection: DiscordVoice.VoiceConnection = usingConnection = DiscordVoice.joinVoiceChannel({
                 channelId: voiceChannel.id,
                 guildId: voiceChannel.guild.id,
-                adapterCreator: voiceChannel.guild.voiceAdapterCreator
+                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+                selfDeaf: false,
+                selfMute: false,
             });
             context.voice = voiceChannel;
             context.text = textChannel;
@@ -268,6 +284,11 @@ export const RootProcessDefine: {[key: string]: Process} = {
 
             const opusDecoder = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 });
 
+            connection.on('error', error=>console.log);
+            connection.on('stateChange', error=>console.log);
+            receiver.speaking.on('end', (userId) => {
+                console.log(userId, "end");
+            });
             receiver.speaking.on('start', (userId) => {
                 const chunks: any[] = [];
                 const audioStream = receiver.subscribe(userId, {
@@ -276,7 +297,7 @@ export const RootProcessDefine: {[key: string]: Process} = {
                     duration: 100,
                   },
                 });
-                audioStream.pipe(opusDecoder).on('data', chunk => {
+                audioStream.pipe(opusDecoder).on('data', (chunk: any) => {
                     chunks.push(chunk);
                 })
                 
@@ -293,14 +314,14 @@ export const RootProcessDefine: {[key: string]: Process} = {
                     .toFormat('wav')
                     .save(file_path) 
                     .on('end', async() => {
-                        const usingModelName = configureManager.config.model ?? 'large-v3-turbo';
+                        const usingModelName = configureManager.config.model;
                         const text = await Whisper.nodewhisper(file_path, {
                             autoDownloadModelName: usingModelName,
                             modelName: usingModelName,
                             removeWavFileAfterTranscription: true,
                             withCuda: true,
                             whisperOptions: {
-                                language: configureManager.config.language ?? 'ja'
+                                language: configureManager.config.language
                             }
                         });
                         voiceChatLogManager.insert(userId, text);
@@ -308,12 +329,6 @@ export const RootProcessDefine: {[key: string]: Process} = {
                     .on('error', (err:any) => { console.error(err); });
             });
             
-            console.info(
-                'connect', 
-                voiceChannel.name, 
-                textChannel.name,
-                connection, receiver
-            );
             interaction.reply({
                 content: 'test',
                 flags: Discord.MessageFlags.Ephemeral
