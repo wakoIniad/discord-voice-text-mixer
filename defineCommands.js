@@ -267,8 +267,8 @@ exports.RootProcessDefine = {
             context.connection = connection;
             const receiver = connection.receiver;
             const opusDecoder = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 });
-            connection.on('error', console.log);
-            connection.on('stateChange', console.log);
+            connection.on('error', error => console.log);
+            connection.on('stateChange', error => console.log);
             receiver.speaking.on('end', (userId) => {
                 console.log(userId, "end");
             });
@@ -283,30 +283,32 @@ exports.RootProcessDefine = {
                 audioStream.pipe(opusDecoder).on('data', (chunk) => {
                     chunks.push(chunk);
                 });
-                const file_path = path.join(__dirname, `tmp_${userId}_${Date.now()}.wav`);
+                const file_path = path.join(__dirname, `tmp/tmp_${userId}_${Date.now()}.wav`);
                 //PCM(標本化・離散化された生データ)
                 //圧縮する形式の一つがopus(他にもaacなど)
                 (0, fluent_ffmpeg_1.default)(audioStream.pipe(opusDecoder))
-                    //signed 16bit little endian
-                    .inputFormat('s16le')
-                    //ar:audio rate, ac:audio channel
-                    .inputOptions(['-ar 48000', '-ac 2'])
-                    .audioChannels(1)
-                    .audioFrequency(16000)
-                    .toFormat('wav')
-                    .save(file_path)
-                    .on('end', async () => {
+                //signed 16bit little endian
+                .inputFormat('s16le')
+                //ar:audio rate, ac:audio channel
+                .inputOptions(['-ar 48000', '-ac 2'])
+                .audioChannels(1)
+                .audioFrequency(16000)
+                .toFormat('wav')
+                .save(file_path)
+                .on('end', async () => {
                     const usingModelName = configureManager.config.model;
+                    console.log()
                     const text = await Whisper.nodewhisper(file_path, {
                         autoDownloadModelName: usingModelName,
                         modelName: usingModelName,
                         removeWavFileAfterTranscription: true,
-                        withCuda: true,
+                        //withCuda: true,
                         whisperOptions: {
                             language: configureManager.config.language
                         }
                     });
                     voiceChatLogManager.insert(userId, text);
+                    console.log("あいうえおかんどえｗTEXT TEXT", text);
                 })
                     .on('error', (err) => { console.error(err); });
             });

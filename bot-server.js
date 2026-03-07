@@ -186,7 +186,7 @@ client.on('interactionCreate', async (interaction) => {
                 if (now && now in context.use) {
                     context.f = ((prevf, currContext) => (i, data = { from: "", value: [] }) => prevf(i, currContext[now].handler(i, {
                         from: now,
-                        value: data
+                        value: data,
                     })))(context.f, context.use);
                     if ('subcommands' in context.use[now]) {
                         context.use = context.use[now].subcommands;

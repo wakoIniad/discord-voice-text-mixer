@@ -25,13 +25,12 @@ enum DiscordChannelTypeAilias {
     text
 }
 
-type _TupleSlide = [ 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ];
-type _CurrentType = [ never, any, any ];
-type HandlerContext = {from: string, value: any[], arguments: RequiredArguments};
+type _TupleSlide = [ 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
+type _CurrentType = [ never, any, any ]
 export type ProcessBase<Depth extends 0|1|2 = 2> = {
     name: string,
     description: string,
-    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_returns: HandlerContext) => any,
+    handler: (interaction: Discord.ChatInputCommandInteraction, subhandler_returns: {from: string, value: any[]}) => any,
 }&({
     subcommands: _CurrentType[Depth] & {[$: string]:ProcessBase<_TupleSlide[Depth]>}
 }|{
@@ -144,14 +143,6 @@ function isKeyOf(val: any, target: object): val is keyof typeof target {
 function isMayValueOf<Target,Key extends keyof Target>(val: any, target: Target, key: Key): val is typeof target[Key]{
     if(typeof(val) === typeof(target[key])) return true;
     return false;
-}
-
-interface RequiredArguments {
-    voiceChannel: Discord.VoiceChannel,
-    textChannel: Discord.TextChannel,
-    targetUser: Discord.User,
-    stringArgument: string,
-    value: string|boolean|number,
 }
 let usingConnection:DiscordVoice.VoiceConnection;
 
@@ -266,9 +257,9 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 description: "text channel"
             }
         ],
-        "handler": function(interaction: Discord.ChatInputCommandInteraction, handlerContext: HandlerContext) {
-            const { voiceChannel, textChannel } = handlerContext.arguments;
-
+        "handler": function(interaction: Discord.ChatInputCommandInteraction) {
+            const voiceChannel: Discord.VoiceChannel = interaction.options.getChannel('voice', true);
+            const textChannel: Discord.TextChannel = interaction.options.getChannel('text', true);
             if(usingConnection)usingConnection.destroy();
             const connection: DiscordVoice.VoiceConnection = usingConnection = DiscordVoice.joinVoiceChannel({
                 channelId: voiceChannel.id,
@@ -301,19 +292,19 @@ export const RootProcessDefine: {[key: string]: Process} = {
                     chunks.push(chunk);
                 })
                 
-                const file_path = path.join(__dirname, `tmp_${userId}_${Date.now()}.wav`)
+                const file_path = path.join(__dirname, `tmp/tmp_${userId}_${Date.now()}.wav`)
                 //PCM(標本化・離散化された生データ)
                 //圧縮する形式の一つがopus(他にもaacなど)
                 ffmpeg(audioStream.pipe(opusDecoder))
-                    //signed 16bit little endian
-                    .inputFormat('s16le')
-                    //ar:audio rate, ac:audio channel
-                    .inputOptions(['-ar 48000', '-ac 2'])
-                    .audioChannels(1)
-                    .audioFrequency(16000)
-                    .toFormat('wav')
-                    .save(file_path) 
-                    .on('end', async() => {
+                //signed 16bit little endian
+                .inputFormat('s16le')
+                //ar:audio rate, ac:audio channel
+                .inputOptions(['-ar 48000', '-ac 2'])
+                .audioChannels(1)
+                .audioFrequency(16000)
+                .toFormat('wav')
+                .save(file_path) 
+                .on('end', async() => {
                         const usingModelName = configureManager.config.model;
                         const text = await Whisper.nodewhisper(file_path, {
                             autoDownloadModelName: usingModelName,
@@ -325,6 +316,9 @@ export const RootProcessDefine: {[key: string]: Process} = {
                             }
                         });
                         voiceChatLogManager.insert(userId, text);
+                        fs.unlink(file_path, function() {
+                            console.log(file_path)
+                        });
                     })
                     .on('error', (err:any) => { console.error(err); });
             });

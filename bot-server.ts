@@ -187,7 +187,6 @@ client.on('interactionCreate', async (interaction) => {
                 context.f = ((prevf, currContext)=>(i:ci, data={from:"", value:[]})=>prevf(i, currContext[now as keyof typeof currContext].handler(i, {
                     from: now,
                     value: data,
-                    arguments: 
                 })))(context.f, context.use);
                 if('subcommands' in context.use[now]) {
                     context.use = context.use[now].subcommands;
