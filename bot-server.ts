@@ -3,7 +3,8 @@ import 'dotenv/config';
 import * as Discord from 'discord.js';
 import { LocalLogManager } from './error';
 import { RootProcessDefine as processDefine } from './defineCommands.js';
-import type { Process, ProcessBase } from './defineCommands.js';
+import type { Process, ProcessBase, usingReflector } from './defineCommands.js';
+import {useComponentsAilias, componentid_lookup, component_id} from './interactionComponent';
 
 /*const useCommands = ( CommandDefine as Discord.SlashCommandBuilder[])
     .reduce((result: {[key: string]: Command}, cmd) => {
@@ -225,7 +226,11 @@ client.on('interactionCreate', async (interaction) => {
     //        }
     //    }
     //}
-  }
+    } else if(interaction.isModalSubmit()) {
+        Discord.ModalSubmitInteraction
+    } else if(interaction.isButton()) {
+        componentid_lookup[interaction.customId]
+    }
 })
 
 client.login(process.env.TOKEN);

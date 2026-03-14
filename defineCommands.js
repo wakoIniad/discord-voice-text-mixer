@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.registerCommandsList = exports.RootProcessDefine = void 0;
+exports.registerCommandsList = exports.RootProcessDefine = exports.usingReflector = void 0;
 const Discord = __importStar(require("discord.js"));
 const DiscordVoice = __importStar(require("@discordjs/voice"));
 const Whisper = __importStar(require("nodejs-whisper"));
@@ -44,6 +44,7 @@ const prism = __importStar(require("prism-media"));
 const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
+const useModals = __importStar(require("./interactionComponent"));
 var ProcessTypeAilias;
 (function (ProcessTypeAilias) {
     ProcessTypeAilias[ProcessTypeAilias["command"] = 0] = "command";
@@ -80,6 +81,23 @@ class VoiceChatLogManager {
         };
         this.log.push(row);
         this.headerMap[user_id]?.push?.(row) ?? (this.headerMap[user_id] = [row]);
+        Reflector.reflections.forEach(f => f(this.log));
+    }
+    preinsert(user_id) {
+        const key = Symbol(user_id);
+        const row = {
+            user_id: user_id,
+            content: `文字起こし中...(仮メッセージ)`,
+            timestamp: new Date(),
+            key: key
+        };
+        this.log.push(row);
+        this.headerMap[user_id]?.push?.(row) ?? (this.headerMap[user_id] = [row]);
+        Reflector.reflections.forEach(f => f(this.log));
+        return key;
+    }
+    removePreinsert(symbol) {
+        this.log = this.log.filter(log => log?.key !== symbol);
     }
 }
 class ConfigureManager {
@@ -143,6 +161,62 @@ function isMayValueOf(val, target, key) {
     return false;
 }
 let usingConnection;
+var ReflectorType;
+(function (ReflectorType) {
+    ReflectorType[ReflectorType["board"] = 0] = "board";
+    ReflectorType[ReflectorType["channel"] = 1] = "channel";
+})(ReflectorType || (ReflectorType = {}));
+class Reflector {
+    type;
+    static reflections = [];
+    constructor(type) {
+        this.type = type;
+    }
+    //関数参照の配列でいいのにわざわざProxyを使います
+    static getProxy(callback) {
+        const handler = {
+            get(obj, prop) {
+            },
+            set() {
+            }
+        };
+        const proxy = new Proxy([], handler);
+        return proxy;
+    }
+    #makeMessageContent(body) {
+        return `${body}\n\`表示モード\``;
+    }
+    reflect(interaction) {
+        let callback = () => void 0;
+        switch (this.type) {
+            case ReflectorType.board:
+                interaction.reply({
+                    content: this.#makeMessageContent(''),
+                    components: useModals.createDefaultMenu(),
+                });
+                Reflector.reflections.push(async (list) => interaction.editReply({
+                    content: this.#makeMessageContent((await Promise.all(list.map(async (log) => `${(await interaction.guild?.members.fetch(log.user_id))?.displayName} ${log.content}`))).join('\n')),
+                    components: useModals.createDefaultMenu()
+                }));
+                break;
+            case ReflectorType.channel:
+                break;
+            default:
+                break;
+        }
+        //const proxy = Reflector.getProxy(callback);
+    }
+    static commandArgumentDefine = {
+        reflectorTypes: {
+            'board': 'board',
+            'channel': 'channel'
+        }
+    };
+    static entries(targetHashMap) {
+        const hashMap = this.commandArgumentDefine[targetHashMap];
+        return Object.entries(hashMap).map(([name, value]) => ({ name: name, value: value }));
+    }
+}
 const voiceChatLogManager = new VoiceChatLogManager();
 exports.RootProcessDefine = {
     "reflect": {
@@ -154,16 +228,23 @@ exports.RootProcessDefine = {
                 name: "type",
                 type: DiscordCommandOptionAilias.string,
                 description: "表示タイプ",
-                choices: [
-                    { name: "board", value: "board" },
-                    { name: "channel", value: "channel" }
-                ]
+                choices: Reflector.entries('reflectorTypes')
             }
         ],
         "handler": function (interaction) {
-            const choice = interaction.options.getString('model', true);
-            configureManager.config.model = choice;
-            configureManager.save();
+            const reflect = interaction.options.getString('type', true);
+            if (isKeyOf(reflect, Reflector.commandArgumentDefine.reflectorTypes)) {
+                switch (reflect) {
+                    case 'board':
+                        exports.usingReflector = new Reflector(ReflectorType.board);
+                        exports.usingReflector.reflect(interaction);
+                        break;
+                    case 'channel':
+                        exports.usingReflector = new Reflector(ReflectorType.channel);
+                        exports.usingReflector.reflect(interaction);
+                        break;
+                }
+            }
             return true;
         }
     },
@@ -287,28 +368,31 @@ exports.RootProcessDefine = {
                 //PCM(標本化・離散化された生データ)
                 //圧縮する形式の一つがopus(他にもaacなど)
                 (0, fluent_ffmpeg_1.default)(audioStream.pipe(opusDecoder))
-                //signed 16bit little endian
-                .inputFormat('s16le')
-                //ar:audio rate, ac:audio channel
-                .inputOptions(['-ar 48000', '-ac 2'])
-                .audioChannels(1)
-                .audioFrequency(16000)
-                .toFormat('wav')
-                .save(file_path)
-                .on('end', async () => {
+                    //signed 16bit little endian
+                    .inputFormat('s16le')
+                    //ar:audio rate, ac:audio channel
+                    .inputOptions(['-ar 48000', '-ac 2'])
+                    .audioChannels(1)
+                    .audioFrequency(16000)
+                    .toFormat('wav')
+                    .save(file_path)
+                    .on('end', async () => {
+                    const id = voiceChatLogManager.preinsert(userId);
                     const usingModelName = configureManager.config.model;
-                    console.log()
                     const text = await Whisper.nodewhisper(file_path, {
                         autoDownloadModelName: usingModelName,
                         modelName: usingModelName,
                         removeWavFileAfterTranscription: true,
-                        //withCuda: true,
+                        withCuda: false,
                         whisperOptions: {
                             language: configureManager.config.language
                         }
                     });
                     voiceChatLogManager.insert(userId, text);
-                    console.log("あいうえおかんどえｗTEXT TEXT", text);
+                    fs.unlink(file_path, function () {
+                        console.log(file_path);
+                    });
+                    voiceChatLogManager.removePreinsert(id);
                 })
                     .on('error', (err) => { console.error(err); });
             });

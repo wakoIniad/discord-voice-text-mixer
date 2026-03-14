@@ -5,6 +5,7 @@ import * as prism from 'prism-media';
 import ffmpeg from 'fluent-ffmpeg'
 import * as path from 'path';
 import * as fs from 'fs';
+import * as useModals from './interactionComponent';
 
 enum ProcessTypeAilias {
     command,
@@ -75,6 +76,23 @@ class VoiceChatLogManager {
         }
         this.log.push(row);
         this.headerMap[user_id]?.push?.(row) ?? (this.headerMap[user_id] = [row]);
+        Reflector.reflections.forEach(f=>f(this.log));
+    }
+    preinsert(user_id: string) {
+        const key = Symbol(user_id);
+        const row:LogContent = {
+            user_id: user_id,
+            content: `文字起こし中...(仮メッセージ)`,
+            timestamp: new Date(),
+            key: key
+        }
+        this.log.push(row);
+        this.headerMap[user_id]?.push?.(row) ?? (this.headerMap[user_id] = [row]);
+        Reflector.reflections.forEach(f=>f(this.log));
+        return key;
+    }
+    removePreinsert(symbol: Symbol) {
+        this.log = this.log.filter(log=>log?.key!==symbol);
     }
 }
 
@@ -146,6 +164,73 @@ function isMayValueOf<Target,Key extends keyof Target>(val: any, target: Target,
 }
 let usingConnection:DiscordVoice.VoiceConnection;
 
+enum ReflectorType {
+    board,
+    channel
+}
+class Reflector {
+    static reflections: ((_: any)=>void)[] = [];
+    constructor(public type: ReflectorType){}
+    //関数参照の配列でいいのにわざわざProxyを使います
+    static getProxy(callback: (..._:any[])=>void): object {
+        const handler = {
+            get(obj: object, prop: string) {
+
+            },
+            set() {
+
+            }
+        };
+        const proxy = new Proxy([], handler);
+        return proxy;
+    }
+    #makeMessageContent(body: string) {
+        return `${body}\n\`表示モード\``
+    }
+    reflect(interaction: Discord.ChatInputCommandInteraction): void {
+        let callback: ()=>void = ()=>void 0;
+        switch(this.type) {
+            case ReflectorType.board:
+                interaction.reply({
+                    content: this.#makeMessageContent(''),
+                    components: useModals.createDefaultMenu(),
+                });
+                Reflector.reflections.push(
+                    async(list: LogContent[]) =>
+                        interaction.editReply({
+                            content: this.#makeMessageContent((await Promise.all(list.map(async log=>
+                                `${(await interaction.guild?.members.fetch(log.user_id))?.displayName} ${log.content}`
+                            ))).join('\n')),
+                            components: useModals.createDefaultMenu()
+                        })
+                );
+                break;
+            case ReflectorType.channel:
+
+                break;
+            default:
+                break;
+        }
+        //const proxy = Reflector.getProxy(callback);
+    }
+    static commandArgumentDefine = {
+        reflectorTypes: {
+            'board': 'board',
+            'channel': 'channel'
+        }
+    }
+    
+    static entries(targetHashMap: keyof typeof this.commandArgumentDefine): {
+        name: string,
+        value: string,
+    }[]{
+        const hashMap = this.commandArgumentDefine[targetHashMap];
+        return Object.entries(hashMap).map(([name, value]) => ({name: name, value: value}));
+    }
+}
+
+export let usingReflector:Reflector;
+
 const voiceChatLogManager = new VoiceChatLogManager();
 export const RootProcessDefine: {[key: string]: Process} = {
     "reflect": {
@@ -157,16 +242,23 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 name: "type",
                 type: DiscordCommandOptionAilias.string,
                 description: "表示タイプ",
-                choices: [
-                    { name: "board", value: "board" }, 
-                    { name: "channel", value: "channel" }
-                ]
+                choices: Reflector.entries('reflectorTypes')
             }
         ],
         "handler": function(interaction: Discord.ChatInputCommandInteraction) {
-            const choice = interaction.options.getString('model', true);
-            configureManager.config.model = choice;
-            configureManager.save();
+            const reflect = interaction.options.getString('type', true);
+            if(isKeyOf(reflect ,Reflector.commandArgumentDefine.reflectorTypes)) { 
+                switch(reflect) {
+                    case 'board':
+                        usingReflector = new Reflector(ReflectorType.board);
+                        usingReflector.reflect(interaction);
+                        break;
+                    case 'channel':
+                        usingReflector = new Reflector(ReflectorType.channel);
+                        usingReflector.reflect(interaction);
+                        break;
+                }
+            }
             return true;
         }
     },
@@ -290,7 +382,7 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 });
                 audioStream.pipe(opusDecoder).on('data', (chunk: any) => {
                     chunks.push(chunk);
-                })
+                });
                 
                 const file_path = path.join(__dirname, `tmp/tmp_${userId}_${Date.now()}.wav`)
                 //PCM(標本化・離散化された生データ)
@@ -303,14 +395,16 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 .audioChannels(1)
                 .audioFrequency(16000)
                 .toFormat('wav')
-                .save(file_path) 
+                .save(file_path)
                 .on('end', async() => {
+                        const id = voiceChatLogManager.preinsert(userId);
+
                         const usingModelName = configureManager.config.model;
                         const text = await Whisper.nodewhisper(file_path, {
                             autoDownloadModelName: usingModelName,
                             modelName: usingModelName,
                             removeWavFileAfterTranscription: true,
-                            withCuda: true,
+                            withCuda: false,
                             whisperOptions: {
                                 language: configureManager.config.language
                             }
@@ -319,6 +413,7 @@ export const RootProcessDefine: {[key: string]: Process} = {
                         fs.unlink(file_path, function() {
                             console.log(file_path)
                         });
+                        voiceChatLogManager.removePreinsert(id);
                     })
                     .on('error', (err:any) => { console.error(err); });
             });

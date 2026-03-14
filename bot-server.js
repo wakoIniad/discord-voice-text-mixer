@@ -38,6 +38,7 @@ require("dotenv/config");
 const Discord = __importStar(require("discord.js"));
 const error_1 = require("./error");
 const defineCommands_js_1 = require("./defineCommands.js");
+const interactionComponent_1 = require("./interactionComponent");
 /*const useCommands = ( CommandDefine as Discord.SlashCommandBuilder[])
     .reduce((result: {[key: string]: Command}, cmd) => {
     const options: {type: string, name: string}[] = [];
@@ -226,6 +227,12 @@ client.on('interactionCreate', async (interaction) => {
         //        }
         //    }
         //}
+    }
+    else if (interaction.isModalSubmit()) {
+        Discord.ModalSubmitInteraction;
+    }
+    else if (interaction.isButton()) {
+        interactionComponent_1.componentid_lookup[interaction.customId];
     }
 });
 client.login(process.env.TOKEN);
