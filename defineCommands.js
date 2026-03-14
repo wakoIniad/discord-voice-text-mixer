@@ -378,20 +378,21 @@ exports.RootProcessDefine = {
                     .save(file_path)
                     .on('end', async () => {
                     const id = voiceChatLogManager.preinsert(userId);
+                    console.log("あいうえお",file_path);
                     const usingModelName = configureManager.config.model;
                     const text = await Whisper.nodewhisper(file_path, {
                         autoDownloadModelName: usingModelName,
                         modelName: usingModelName,
-                        removeWavFileAfterTranscription: true,
-                        withCuda: false,
+                        removeWavFileAfterTranscription: false,
+                        //withCuda: true,
                         whisperOptions: {
                             language: configureManager.config.language
                         }
                     });
                     voiceChatLogManager.insert(userId, text);
-                    fs.unlink(file_path, function () {
-                        console.log(file_path);
-                    });
+                    //fs.unlink(file_path, function () {
+                    //    console.log(file_path);
+                    //});
                     voiceChatLogManager.removePreinsert(id);
                 })
                     .on('error', (err) => { console.error(err); });

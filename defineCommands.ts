@@ -398,13 +398,13 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 .save(file_path)
                 .on('end', async() => {
                         const id = voiceChatLogManager.preinsert(userId);
-
+                        console.log(file_path)
                         const usingModelName = configureManager.config.model;
                         const text = await Whisper.nodewhisper(file_path, {
                             autoDownloadModelName: usingModelName,
                             modelName: usingModelName,
-                            removeWavFileAfterTranscription: true,
-                            withCuda: false,
+                            removeWavFileAfterTranscription: false,
+                            //withCuda: false,
                             whisperOptions: {
                                 language: configureManager.config.language
                             }
