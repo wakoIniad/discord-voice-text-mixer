@@ -6,6 +6,7 @@ import ffmpeg from 'fluent-ffmpeg'
 import * as path from 'path';
 import * as fs from 'fs';
 import * as useModals from './interactionComponent';
+import { error } from 'console';
 
 enum ProcessTypeAilias {
     command,
@@ -232,6 +233,7 @@ class Reflector {
 export let usingReflector:Reflector;
 
 const voiceChatLogManager = new VoiceChatLogManager();
+const alreadySubscribing = [];
 export const RootProcessDefine: {[key: string]: Process} = {
     "reflect": {
         "name": "reflect",
@@ -326,6 +328,9 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 if(isMayValueOf(item_value, configureManager.config, item_name)) {
                     configureManager.config[item_name] = item_value;
                     configureManager.save();
+                    interaction.reply({
+                        content: `now config: \n\`\`\`json${JSON.stringify(configureManager.config)}\`\`\``
+                    })
                 }
             }
             return true;
@@ -364,30 +369,41 @@ export const RootProcessDefine: {[key: string]: Process} = {
             context.text = textChannel;
             context.connection = connection;
             const receiver = connection.receiver;
-
-            const opusDecoder = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 });
-
-            connection.on('error', error=>console.log);
+            
+            let error_caused = false;
+            
+            connection.on('error', error => {
+                console.log("あいうえお_エラー",error);
+                error_caused = true;
+            });
             connection.on('stateChange', error=>console.log);
             receiver.speaking.on('end', (userId) => {
                 console.log(userId, "end");
             });
             receiver.speaking.on('start', (userId) => {
-                const chunks: any[] = [];
+                //const chunks: any[] = [];
+                const opusDecoder = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 });
                 const audioStream = receiver.subscribe(userId, {
                   end: {
                     behavior: DiscordVoice.EndBehaviorType.AfterSilence,
-                    duration: 100,
+                    duration: 800,
                   },
                 });
-                audioStream.pipe(opusDecoder).on('data', (chunk: any) => {
-                    chunks.push(chunk);
-                });
+                const decorder = audioStream.pipe(opusDecoder);
+                decorder.on('error', (error:any)=>{
+                    error_caused = true;
+                    console.log("[あ]MAINSTREAM ERROR", error);
+                })
+                //decorder.on('data', (chunk: any) => {
+                //    chunks.push(chunk);
+                //});
                 
                 const file_path = path.join(__dirname, `tmp/tmp_${userId}_${Date.now()}.wav`)
                 //PCM(標本化・離散化された生データ)
                 //圧縮する形式の一つがopus(他にもaacなど)
-                ffmpeg(audioStream.pipe(opusDecoder))
+                if (!decorder) return;
+
+                const mainStream = ffmpeg(decorder)
                 //signed 16bit little endian
                 .inputFormat('s16le')
                 //ar:audio rate, ac:audio channel
@@ -395,31 +411,40 @@ export const RootProcessDefine: {[key: string]: Process} = {
                 .audioChannels(1)
                 .audioFrequency(16000)
                 .toFormat('wav')
-                .save(file_path)
-                .on('end', async() => {
+                .save(file_path);
+                mainStream.on('error', (error:any)=>{
+                    error_caused = true;
+                    console.log("[あ]MAINSTREAM ERROR", error);
+                })
+                mainStream.on('end', async() => {
+                    try {
                         const id = voiceChatLogManager.preinsert(userId);
-                        console.log(file_path)
+                        //if(error_caused)return;
+                        console.log(`[あ]${file_path} ${error_caused}`);
                         const usingModelName = configureManager.config.model;
                         const text = await Whisper.nodewhisper(file_path, {
                             autoDownloadModelName: usingModelName,
                             modelName: usingModelName,
-                            removeWavFileAfterTranscription: false,
-                            //withCuda: false,
+                            removeWavFileAfterTranscription: true,
+                            withCuda: false,
                             whisperOptions: {
                                 language: configureManager.config.language
                             }
                         });
                         voiceChatLogManager.insert(userId, text);
-                        fs.unlink(file_path, function() {
-                            console.log(file_path)
-                        });
+                        //fs.unlink(file_path, function() {
+                        //    console.log(file_path)
+                        //});
                         voiceChatLogManager.removePreinsert(id);
+                    } catch(e) {
+                        console.error(e);
+                    }
                     })
                     .on('error', (err:any) => { console.error(err); });
             });
             
             interaction.reply({
-                content: 'test',
+                content: '接続しました',
                 flags: Discord.MessageFlags.Ephemeral
             });
             return true;
